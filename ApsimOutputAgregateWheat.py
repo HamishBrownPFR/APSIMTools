@@ -714,7 +714,6 @@ def plot_obs_pred_by_branch(
     color_by=None,
     marker_by=None,
     size_by=None,
-    fill_by=None
 ):
     
     # -------------------------------
@@ -733,7 +732,8 @@ def plot_obs_pred_by_branch(
     # ATTACH METADATA
     # -------------------------------
     meta = tidy[[
-        "branch", "file", "SimulationID", "Experiment", f"{CROP}.SowingData.Cultivar"
+        "branch", "file", "SimulationID",
+        "Experiment", f"{CROP}.SowingData.Cultivar"
     ]].drop_duplicates()
 
     pivot = pivot.merge(
@@ -750,46 +750,59 @@ def plot_obs_pred_by_branch(
     # Color
     color_map = {}
     if color_by:
-        vals = sorted(pivot[color_by].dropna().unique())
+        color_vals = sorted(pivot[color_by].dropna().unique())
         colors = list(Colors.values())
-        color_map = {v: colors[i % len(colors)] for i, v in enumerate(vals)}
+        color_map = {v: colors[i % len(colors)] for i, v in enumerate(color_vals)}
 
-    # Marker
-    marker_map = {}
+    # Markers and fills
     if marker_by:
-        vals = sorted(pivot[marker_by].dropna().unique())
-        markers = list(Markers.values())
-        marker_map = {v: markers[i % len(markers)] for i, v in enumerate(vals)}
+        marker_styles = list(Markers.values())
+        n_markers = len(marker_styles)
+
+        marker_vals = sorted(pivot[marker_by].dropna().unique())
+
+        marker_map = {}
+        fill_map = {}
+
+        for i, v in enumerate(marker_vals):
+            marker_map[v] = marker_styles[i % n_markers]
+
+            # ✅ cycle fill AFTER cycling markers
+            fill_map[v] = (i // n_markers) % 2 == 0
+
 
     # Size
     size_map = {}
     if size_by:
-        vals = sorted(pivot[size_by].dropna().unique())
+        size_vals = sorted(pivot[size_by].dropna().unique())
         sizes = np.linspace(30, 120, len(vals))
-        size_map = {v: sizes[i] for i, v in enumerate(vals)}
-
-    # Fill (True=filled, False=hollow)
-    fill_map = {}
-    if fill_by:
-        vals = sorted(pivot[fill_by].dropna().unique())
-        fill_map = {v: (i == 0) for i, v in enumerate(vals)}
+        size_map = {v: sizes[i] for i, v in enumerate(size_vals)}
 
     # -------------------------------
-    # PLOT
+    # CREATE FIGURE (NO constrained_layout)
     # -------------------------------
+    panel_size = 5
+    n = len(branches)
+
+    fig_width = panel_size * n
+    fig_height = panel_size * 1.2
+
     fig, axes = plt.subplots(
-        1, len(branches),
-        figsize=(6 * len(branches), 6),
+        1, n,
+        figsize=(fig_width, fig_height),
         sharex=True, sharey=True
     )
 
     if len(branches) == 1:
         axes = [axes]
 
-    max_val = max(pivot["obs"].max(), pivot["pred"].max())
+    # -------------------------------
+    # SCATTER PLOT
+    # -------------------------------
+    max_val = np.nanmax([pivot["obs"], pivot["pred"]])
     lims = [0, max_val]
 
-    group_cols = [c for c in [color_by, marker_by, size_by, fill_by] if c]
+    group_cols = [c for c in [color_by, marker_by, size_by] if c]
 
     for ax, branch in zip(axes, branches):
 
@@ -802,13 +815,14 @@ def plot_obs_pred_by_branch(
             color_val = sub[color_by].iloc[0] if color_by else None
             marker_val = sub[marker_by].iloc[0] if marker_by else None
             size_val = sub[size_by].iloc[0] if size_by else None
-            fill_val = sub[fill_by].iloc[0] if fill_by else None
-
+            
             facecolor = color_map.get(color_val, "grey")
             edgecolor = color_map.get(color_val, "grey")
 
-            if fill_by and not fill_map.get(fill_val, True):
-                facecolor = "none"
+            if marker_by:
+                filled = fill_map.get(marker_val, True)
+                if not filled:
+                    facecolor = "none"
 
             ax.scatter(
                 sub["obs"],
@@ -820,122 +834,96 @@ def plot_obs_pred_by_branch(
                 alpha=0.7
             )
 
+        
+        ax.text(
+            0.02, 0.98, branch,
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=11,
+            fontweight="bold"
+        )
         ax.plot(lims, lims, "k--", linewidth=1)
-
-        ax.set_title(branch)
         ax.set_xlabel(f"Observed {variable}")
         ax.set_ylabel(f"Predicted {variable}")
-
         ax.set_xlim(lims)
         ax.set_ylim(lims)
         ax.set_aspect('equal', adjustable='box')
         ax.grid(alpha=0.2)
-
-    # LEGENDS (dynamic stacking)
+        ax.margins(0.05)
     # -------------------------------
-    legend_y = 1.20   # starting position
-    legend_spacing = 0.06  # base vertical gap
+    # BUILD LEGENDS (NO POSITION YET)
+    # -------------------------------
+    legend_objects = []
 
-    def estimate_rows(n_items, max_cols):
-        return int(np.ceil(n_items / max_cols))
-
-    # ---------------------------
     # Color legend
-    # ---------------------------
     if color_by and color_map:
-        max_cols = min(len(color_map), 6)
-        rows = estimate_rows(len(color_map), max_cols)
-
         handles = [
-            plt.Line2D(
-                [0], [0],
+            plt.Line2D([0], [0],
                 marker='o',
                 color='w',
                 markerfacecolor=color_map[val],
                 label=str(val),
                 markersize=8
             )
-            for val in color_map
+            for val in sorted(color_map)
         ]
 
-        fig.legend(
-            handles=handles,
-            title=color_by,
-            loc="upper center",
-            bbox_to_anchor=(0.5, legend_y),
-            ncol=max_cols,
-            frameon=False
+        legend_objects.append(
+            fig.legend(handles=handles, title=color_by, loc="upper center",
+                       ncol=min(len(handles), 6), frameon=False)
         )
 
-        legend_y -= (rows + 1) * legend_spacing
-
-    # ---------------------------
     # Marker legend
-    # ---------------------------
     if marker_by and marker_map:
-        max_cols = min(len(marker_map), 6)
-        rows = estimate_rows(len(marker_map), max_cols)
-
         handles = [
             plt.Line2D(
                 [0], [0],
                 marker=marker_map[val],
-                color='k',
                 linestyle='None',
+                markerfacecolor=(
+                    color_map.get(val, 'black') if fill_map[val] else 'none'
+                ),
+                markeredgecolor=color_map.get(val, 'black'),
                 label=str(val),
                 markersize=8
             )
-            for val in marker_map
+            for val in sorted(marker_map)
         ]
 
-        fig.legend(
-            handles=handles,
-            title=marker_by,
-            loc="upper center",
-            bbox_to_anchor=(0.5, legend_y),
-            ncol=max_cols,
-            frameon=False
+        legend_objects.append(
+            fig.legend(handles=handles, title=marker_by, loc="upper center",
+                       ncol=min(len(handles), 6), frameon=False)
         )
 
-        legend_y -= (rows + 1) * legend_spacing
-
-    # ---------------------------
-    # Fill legend
-    # ---------------------------
-    if fill_by and fill_map:
-        max_cols = min(len(fill_map), 6)
-        rows = estimate_rows(len(fill_map), max_cols)
-
-        handles = []
-        for val, filled in fill_map.items():
-            handles.append(
-                plt.Line2D(
-                    [0], [0],
-                    marker='o',
-                    linestyle='None',
-                    markerfacecolor=('black' if filled else 'none'),
-                    markeredgecolor='black',
-                    label=str(val),
-                    markersize=8
-                )
-            )
-
-        fig.legend(
-            handles=handles,
-            title=fill_by,
-            loc="upper center",
-            bbox_to_anchor=(0.5, legend_y),
-            ncol=max_cols,
-            frameon=False
-        )
-
-        legend_y -= (rows + 1) * legend_spacing
-
     # -------------------------------
-    # Layout adjustment
+    # ✅ DYNAMIC LAYOUT (KEY PART)
     # -------------------------------
-    plt.tight_layout(rect=[0, 0, 1, 0.85])
+    if legend_objects:
 
+        # compute sizes
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        inv = fig.transFigure.inverted()
+
+        heights = []
+        for leg in legend_objects:
+            bbox = leg.get_window_extent(renderer).transformed(inv)
+            heights.append(bbox.height)
+
+        pad = 0.01
+        total_height = sum(heights) + pad * len(heights)
+
+        # ✅ reserve space ABOVE panels
+        top_margin = max(0.2, 1 - total_height)
+
+        plt.subplots_adjust(top=top_margin)
+
+        # ✅ stack legends in reserved space
+        y = 1.0
+        for leg, h in zip(legend_objects, heights):
+            leg.set_bbox_to_anchor((0.5, y), transform=fig.transFigure)
+            y -= (h + pad)
 
     return fig
 
@@ -952,95 +940,11 @@ plot_obs_pred_by_branch(
 plt.show()
 
 # %%
-
-tidy[
-    tidy["Experiment"] == "DookieWWHI2024"
-][f"{CROP}.Phenology.CurrentStageName"].dropna().unique()
-
-
-# %%
-
-stage_col = f"{CROP}.Phenology.CurrentStageName"
-
-raw[
-    (raw["Experiment"] == "DookieWWHI2024") &
-    (raw["type"] == "pred")
-][stage_col].dropna().unique()
-
-
-# %%
-test = get_harvest_aligned(tidy,"Wheat.Grain.Wt")
-
-# %%
-test.Experiment_pred.drop_duplicates()
-
-# %%
-test2 = get_daily_aligned(tidy,"Wheat.Grain.Wt")
-
-# %%
-test2.Experiment_pred.drop_duplicates()
-
-# %%
-variable = 'Wheat.Grain.Wt'
-filters = None
-# -------------------------------
-# APPLY FILTERS
-# -------------------------------
-df = apply_filters(tidy, filters)
-
-# -------------------------------
-# HARVEST FILTER (implicit)
-# -------------------------------
-if f"{CROP}.Phenology.CurrentStageName" not in df.columns:
-    raise KeyError(f"Missing {CROP}.Phenology.CurrentStageName in tidy data")
-
-#df = df[df[f"{CROP}.Phenology.CurrentStageName"] == "HarvestRipe"]
-
-# # -------------------------------
-# # Slice out variable to graph
-# # -------------------------------
-#df = df[df.variable == variable].copy()
-
-# # -------------------------------
-# # SPLIT OBS / PRED
-# # -------------------------------
-# obs = df[df["type"] == "obs"].copy()
-# pred = df[df["type"] == "pred"].copy()
-
-# # -------------------------------
-# # COLLAPSE TO ONE ROW PER SIMULATION
-# # -------------------------------
-# keys = ["branch", "file", "SimulationID"]
-
-# pred = pred.sort_values("Clock.Today").groupby(keys).tail(1)
-
-# if obs.empty:
-#     # ✅ No observed data → prediction only mode
-#     print("\nNo observed data — returning predictions only")
-
-#     pred = pred.copy()
-#     pred["pred"] = pred["value"]
-#     pred["obs"] = np.nan
-
-# # collapse obs as well
-# obs = obs.sort_values("Clock.Today").groupby(keys).tail(1)
-
-# # -------------------------------
-# # SAFE MERGE (1:1)
-# # -------------------------------
-# aligned = pred.merge(
-#     obs,
-#     on=keys,
-#     how="inner",
-#     suffixes=("_pred", "_obs")
-# )
-
-# # -------------------------------
-# # BUILD OUTPUT
-# # -------------------------------
-# aligned["pred"] = aligned["value_pred"]
-aligned["obs"] = aligned["value_obs"]
-
-
-# %%
-df[df.Experiment=='DookieWWHI2024'].loc[:,'Wheat.Phenology.CurrentStageName'].drop_duplicates
+plot_obs_pred_by_branch(
+    tidy,
+    "Wheat.Grain.Wt",
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+)
+plt.show()
