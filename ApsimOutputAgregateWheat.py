@@ -57,21 +57,22 @@ Colors = {1:'#000000',
 27:'#17BECF',
 28:'#9EDAE5'}
 
-Markers = {1: 'o',
- 2: '^',
- 3: 's',
- 4: '*',
- 5: '>',
- 6: 'v',
- 7: 'X',
- 8: '<',
- 9: 'p',
- 10: '8',
- 11: 'd',
- 12:'P',
- 13:'D',
- 14:'o',
- 15:'^'}
+
+Markers = {
+ 1: 'o',   # circle
+ 2: '^',   # triangle up
+ 3: 's',   # square
+ 4: 'D',   # diamond
+ 5: 'v',   # triangle down
+ 6: '<',   # triangle left
+ 7: '>',   # triangle right
+ 8: 'p',   # pentagon
+ 9: 'h',   # hexagon1 ✅ NEW
+10: 'H',   # hexagon2 ✅ NEW
+11: 'd',   # thin diamond
+12: 'P',   # plus-filled (optional)
+13: 'X',   # x-filled (optional)
+}
 
 Lines = {1: '-',
  2: '--',
@@ -396,8 +397,8 @@ def load_all():
 # ======================
 
 # Options:
-# RUN_BRANCHES = []                    # run nothing (use existing DBs)
-RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+# RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 # RUN_BRANCHES = ["master"]
 # RUN_BRANCHES = ["working"]
 
@@ -416,43 +417,24 @@ raw = load_all()
 
 # %%
 def enforce_indices_to_observed(df, indices_to_fill):
-    """
-    Make table of index values from predicted data and copy them to the observed data so they have complete indices.
-    """
 
     keys = ["branch", "file", "SimulationID"]
 
-    pred = df[df["type"] == "pred"].copy()
-    pred.set_index(keys,inplace=True)
-    red = pred.sort_index().copy()
-    obs  = df[df["type"] == "obs"].copy()
-    obs.set_index(keys, inplace=True)
-    obs = obs.sort_index().copy()
+    pred = df[df["type"] == "pred"].set_index(keys)
+    obs  = df[df["type"] == "obs"].set_index(keys)
 
-    # -------------------------------
-    # BUILD METADATA
-    # -------------------------------
-    meta = pred.loc[:,indices_to_fill].drop_duplicates()
-    meta = meta.sort_index().copy()
+    meta = (
+        pred
+        .groupby(level=keys)[indices_to_fill]
+        .first()
+    )
 
-    # -------------------------------
-    # MERGE INTO OBS
-    # -------------------------------
-    for i in meta.index:
-        try:
-            obs.loc[i,indices_to_fill] = meta.loc[i,indices_to_fill].values
-        except:
-            #print(i)#
-            do="nothing"
-   
-    # -------------------------------
-    # RECOMBINE
-    # -------------------------------
-    obs = obs.reset_index()
-    pred = pred.reset_index()
-    result = pd.concat([pred, obs], ignore_index=True)
+    # ✅ vectorised alignment (clean + reliable)
+    common_idx = obs.index.intersection(meta.index)
 
-    return result
+    obs.loc[common_idx, indices_to_fill] = meta.loc[common_idx, indices_to_fill]
+
+    return pd.concat([pred.reset_index(), obs.reset_index()], ignore_index=True)
 
 
 # %% [markdown]
@@ -567,7 +549,7 @@ def get_harvest_aligned(tidy, variable, filters=None):
     # APPLY FILTERS
     # -------------------------------
     df = apply_filters(tidy, filters)
-
+    
     # -------------------------------
     # HARVEST FILTER (implicit)
     # -------------------------------
@@ -658,46 +640,48 @@ def get_daily_aligned(tidy, variable, filters=None):
 
 # %%
 def apply_filters(tidy, filters):
-    """
-    Apply generic filters to tidy dataframe.
-
-    filters = {
-        "column_or_variable": [allowed_values],
-    }
-
-    Works for:
-    - metadata columns (e.g. Experiment, branch)
-    - APSIM variables (via variable/value pairs)
-    """
 
     if filters is None:
         return tidy.copy()
 
     df = tidy.copy()
+    keys = ["branch", "file", "SimulationID"]
 
     for key, values in filters.items():
 
+        # ✅ CASE 1: key is a COLUMN
         if key in df.columns:
-            # ✅ direct column filter
-            df = df[df[key].isin(values)]
 
-        else:
-            # ✅ variable-based filter
+            valid_sims = (
+                df[df[key].isin(values)][keys]
+                .drop_duplicates()
+            )
+
+        # ✅ CASE 2: key is a MELTED VARIABLE
+        elif key in df["variable"].unique():
+
+            pred_only = df[df["type"] == "pred"]
+
             mask = (
-                (df["variable"] == key)
-                & (df["value"].isin(values))
+                (pred_only["variable"] == key)
+                & (pred_only["value"].isin(values))
             )
 
-            valid_rows = df.loc[
-                mask,
-                ["branch", "file", "SimulationID", "Clock.Today"]
-            ]
-
-            df = df.merge(
-                valid_rows,
-                on=["branch", "file", "SimulationID", "Clock.Today"],
-                how="inner"
+            valid_sims = (
+                pred_only.loc[mask, keys]
+                .drop_duplicates()
             )
+
+        # ❗ CASE 3: key not found → explicit failure (important!)
+        else:
+            raise KeyError(f"Filter key '{key}' not found in columns or variables")
+
+        # ✅ Filter at simulation level (correct)
+        df = df.merge(valid_sims, on=keys, how="inner")
+
+        if df.empty:
+            print(f"⚠️ Filter removed all data for {key}={values}")
+            return df
 
     return df
 
@@ -775,7 +759,7 @@ def plot_obs_pred_by_branch(
     size_map = {}
     if size_by:
         size_vals = sorted(pivot[size_by].dropna().unique())
-        sizes = np.linspace(30, 120, len(vals))
+        sizes = np.linspace(30, 120, len(size_vals))
         size_map = {v: sizes[i] for i, v in enumerate(size_vals)}
 
     # -------------------------------
@@ -943,8 +927,18 @@ plt.show()
 plot_obs_pred_by_branch(
     tidy,
     "Wheat.Grain.Wt",
+    color_by = "Wheat.SowingData.Cultivar",
+    marker_by = "Experiment",
+    filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy,
+    "Wheat.AboveGround.Wt",
     color_by = "Experiment",
     marker_by = "Wheat.SowingData.Cultivar",
-    filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    mode="daily"
 )
 plt.show()
