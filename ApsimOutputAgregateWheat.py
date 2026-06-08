@@ -76,20 +76,19 @@ Markers = {
 
 Lines = {1: '-',
  2: '--',
- 3: '-,',
+ 3: '-.',
  4: ':',
  5: '-',
  6: '--',
- 7: '-,',
+ 7: '-.',
  8: ':',
  9: '-',
  10: '--',
- 11: '-,',
+ 11: '-.',
  12: ':',
  13: '-',
- 14: '--',
- 15: '-,',
- 16: ':'}
+}
+
 
 
 # %% [markdown]
@@ -118,7 +117,9 @@ SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2024.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2025.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2024.apsimx'),
-    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2025.apsimx')
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Fords2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Turretfield2024.apsimx')
 ]
 
 APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe"
@@ -126,6 +127,42 @@ APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe"
 APSIM_SOLUTION = r"C:\GitHubRepos\ApsimX\ApsimX.sln"
 
 REPORT_LIBRARY = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
+
+# %%
+Development_type={
+'29B':'Spring',
+'5A':'Spring',
+'60A':'Spring',
+'BigRed':'Winter',
+'Corack':'Spring',
+'Espada':'Spring',
+'Gauntlet':'Spring',
+'Gregory':'Spring',
+'Hartog':'Spring',
+'Illabo':'Winter',
+'Janz':'Spring',
+'Kittyhawk':'Winter',
+'Mace':'Spring',
+'Meering':'Spring',
+'Mowhawk':'Winter',
+'Osprey':'Winter',
+'Rosella':'Winter',
+'Scepter':'Spring',
+'Scout':'Spring',
+'Spitfire':'Spring',
+'Stockade':'Spring',
+'Sunbee':'Spring',
+'Sunmaster':'Spring',
+'Sunstate':'Spring',
+'UOM001_3_47':'Winter',
+'UOM001_9_1':'Winter',
+'Wedgetail':'Winter',
+'Whistler':'Winter',
+'Wyalkatchem':'Spring',
+'Wylah':'Winter',
+'Yitpi':'Spring',
+'Zanzibar':'Spring',
+}
 
 
 # %% [markdown]
@@ -241,6 +278,13 @@ def write_apply_file(sim_file):
     # Inject Spectral model into each simulation
     # ---------------------------------------------
     lines.append("add [Spectral] to all [Zone]")
+    
+    # ---------------------------------------------
+    # Hartogify cultivars
+    # ---------------------------------------------
+    lines.append("add new SetModelParamsBySimulation to [Zone] name ConstantBaseCv")
+    lines.append("[ConstantBaseCv].SetEventName = [Plant].PlantSowing")
+    lines.append(f"[ConstantBaseCv].ParameterFile = Inputs/{sim_file.stem}_ConstantPhenology.csv")
 
     # ---------------------------------------------
     # Save + run
@@ -397,8 +441,8 @@ def load_all():
 # ======================
 
 # Options:
-RUN_BRANCHES = []                    # run nothing (use existing DBs)
-# RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+# RUN_BRANCHES = []                    # run nothing (use existing DBs)
+RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 # RUN_BRANCHES = ["master"]
 # RUN_BRANCHES = ["working"]
 
@@ -457,6 +501,7 @@ def to_tidy(df):
         "CheckpointID",
         "Clock.Today",
         f"{CROP}.Phenology.CurrentStageName",
+        f"{CROP}.SowingData.Cultivar",
         "SimulationName",
         "Experiment",
         "Zone",
@@ -501,6 +546,12 @@ def to_tidy(df):
     indices_to_fill = ['Experiment','SimulationName',f'{CROP}.SowingData.Cultivar']
     df = enforce_indices_to_observed(df, indices_to_fill)
     
+    col = f"{CROP}.SowingData.Cultivar"
+
+    df[col] = df.groupby(
+        ["branch", "file", "SimulationID"]
+    )[col].transform(lambda x: x.ffill().bfill())
+                                     
     # ---------------------------------------------
     # ✅ Melt
     # ---------------------------------------------
@@ -510,6 +561,11 @@ def to_tidy(df):
         var_name="variable",
         value_name="value"
     )
+    
+    # ---------------------------------------------
+    # ✅ Add development type index
+    # ---------------------------------------------
+    tidy["DevelopmentType"] = tidy[f"{CROP}.SowingData.Cultivar"].map(Development_type)     
 
     return tidy.dropna(subset=["value"])
 
@@ -609,31 +665,24 @@ def get_harvest_aligned(tidy, variable, filters=None):
 
 
 # %%
-def get_daily_aligned(tidy, variable, filters=None):
-    """
-    Align data at daily resolution.
-
-    - applies filters
-    - aligns obs/pred on SimulationID + date
-    """
+def get_daily_obs_pred_exact(tidy, variable, filters=None):
 
     df = apply_filters(tidy, filters)
 
-    df = df[df["variable"] == variable].copy()
+    keys = ["branch","file","SimulationID","Clock.Today"]
 
-    obs = df[df["type"] == "obs"]
-    pred = df[df["type"] == "pred"]
+    obs = df[
+        (df["type"]=="obs") &
+        (df["variable"]==variable)
+    ][keys + ["value"]].rename(columns={"value":"obs"})
 
-    aligned = pred.merge(
-        obs,
-        on=["file", "SimulationID", "Clock.Today"],
-        how="inner",
-        suffixes=("_pred", "_obs")
-    )
+    pred = df[
+        (df["type"]=="pred") &
+        (df["variable"]==variable)
+    ][keys + ["value"]].rename(columns={"value":"pred"})
 
-    aligned["branch"] = aligned["branch_pred"]
-    aligned["pred"] = aligned["value_pred"]
-    aligned["obs"] = aligned["value_obs"]
+    # ✅ THIS is the key — inner join
+    aligned = obs.merge(pred, on=keys, how="inner")
 
     return aligned
 
@@ -686,6 +735,69 @@ def apply_filters(tidy, filters):
     return df
 
 
+# %%
+def get_stage_timeseries(tidy, variable, filters=None):
+
+    df = apply_filters(tidy, filters)
+
+    keys = ["branch", "file", "SimulationID", "Clock.Today"]
+    stage_var = f"{CROP}.Phenology.Stage"
+
+    # -------------------------------
+    # Extract predicted variable
+    # -------------------------------
+    pred = df[
+        (df["type"] == "pred") &
+        (df["variable"] == variable)
+    ][keys + ["value"]].rename(columns={"value": "pred"})
+
+    # -------------------------------
+    # Extract stage (pred only)
+    # -------------------------------
+    stage = df[
+        (df["type"] == "pred") &
+        (df["variable"] == stage_var)
+    ][keys + ["value"]].rename(columns={"value": "stage"})
+
+    # -------------------------------
+    # Extract observations
+    # -------------------------------
+    obs = df[
+        (df["type"] == "obs") &
+        (df["variable"] == variable)
+    ][keys + ["value"]].rename(columns={"value": "obs"})
+
+    # -------------------------------
+    # Merge pred + stage
+    # -------------------------------
+    dfm = pred.merge(stage, on=keys, how="inner")
+
+    # -------------------------------
+    # Attach obs (LEFT — sparse)
+    # -------------------------------
+    dfm = dfm.merge(obs, on=keys, how="left")
+
+    # -------------------------------
+    # ✅ FIX DUPLICATES (CRITICAL)
+    # -------------------------------
+    dfm = (
+        dfm
+        .groupby(keys, as_index=False)
+        .agg({
+            "pred": "max",
+            "stage": "first",
+            "obs": "first"
+        })
+    )
+
+    # -------------------------------
+    # sort cleanly
+    # -------------------------------
+    dfm = dfm.sort_values(["SimulationID", "stage"])
+
+    return dfm
+
+
 # %% [markdown]
 # # Function plot observed vs predicted by branch
 
@@ -698,6 +810,7 @@ def plot_obs_pred_by_branch(
     color_by=None,
     marker_by=None,
     size_by=None,
+    show_ellipses=False
 ):
     
     # -------------------------------
@@ -707,7 +820,7 @@ def plot_obs_pred_by_branch(
         pivot = get_harvest_aligned(tidy, variable, filters)
 
     elif mode == "daily":
-        pivot = get_daily_aligned(tidy, variable, filters)
+        pivot = get_daily_obs_pred_exact(tidy, variable, filters)#get_daily_aligned(tidy, variable, filters)
 
     else:
         raise ValueError("mode must be 'harvest' or 'daily'")
@@ -717,7 +830,7 @@ def plot_obs_pred_by_branch(
     # -------------------------------
     meta = tidy[[
         "branch", "file", "SimulationID",
-        "Experiment", f"{CROP}.SowingData.Cultivar"
+        "Experiment", f"{CROP}.SowingData.Cultivar","DevelopmentType"
     ]].drop_duplicates()
 
     pivot = pivot.merge(
@@ -793,7 +906,32 @@ def plot_obs_pred_by_branch(
         g = pivot[pivot["branch"] == branch]
 
         grouped = g.groupby(group_cols) if group_cols else [(None, g)]
-
+        
+        # -------------------------------
+        # ADD Stats
+        # -------------------------------
+        
+        stats = compute_stats(g)
+                
+        if stats:
+            stats_text = (
+                f"NSE = {stats['NSE']:.2f}\n"
+                f"Bias = {stats['Bias']:.2f}"
+            )
+        
+        ax.text(
+            0.98, 0.02,
+            stats_text,
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=10,
+            bbox=dict(facecolor="white", alpha=0.6, edgecolor="none")
+        )
+        
+        # -------------------------------
+        # ADD points
+        # -------------------------------
         for key, sub in grouped:
 
             color_val = sub[color_by].iloc[0] if color_by else None
@@ -818,7 +956,22 @@ def plot_obs_pred_by_branch(
                 alpha=0.7
             )
 
-        
+        # -------------------------------
+        # ADD ELLIPSES (grouped by color_by)
+        # -------------------------------
+        if color_by:
+            if show_ellipses:
+                grouped_color = g.groupby(color_by)
+
+                for val, sub in grouped_color:
+
+                    x = sub["obs"]
+                    y = sub["pred"]
+
+                    color = color_map.get(val, "grey")
+
+                    add_confidence_ellipse(ax, x, y, color)
+
         ax.text(
             0.02, 0.98, branch,
             transform=ax.transAxes,
@@ -912,33 +1065,1454 @@ def plot_obs_pred_by_branch(
     return fig
 
 # %% [markdown]
-# # Yield Graph
+# ## Add variance ellipses
+
+# %%
+from matplotlib.patches import Ellipse
+
+def add_confidence_ellipse(ax, x, y, color, n_std=2.0, alpha=0.2):
+
+    if len(x) < 2:
+        return
+
+    cov = np.cov(x, y)
+    mean_x = np.mean(x)
+    mean_y = np.mean(y)
+
+    # eigen decomposition
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+
+    # angle
+    angle = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+    # full ellipse dimensions
+    width  = 2 * n_std * np.sqrt(vals[0])
+    height = 2 * n_std * np.sqrt(vals[1])
+
+    ellipse = Ellipse(
+        (mean_x, mean_y),
+        width=width,
+        height=height,
+        angle=angle,
+        facecolor=color,
+        edgecolor=color,
+        alpha=alpha,
+        linewidth=2
+    )
+    ax.add_patch(ellipse)
+
+    # -------------------------------
+    # ✅ AXIS LINES (TRIMMED PROPERLY)
+    # -------------------------------
+
+    # semi-axis lengths (correct)
+    major_len = n_std * np.sqrt(vals[0])
+    minor_len = n_std * np.sqrt(vals[1])
+
+    major_vec = vecs[:, 0]
+    minor_vec = vecs[:, 1]
+
+    # major axis (exactly to ellipse edge)
+    ax.plot(
+        [mean_x - major_vec[0] * major_len,
+         mean_x + major_vec[0] * major_len],
+        [mean_y - major_vec[1] * major_len,
+         mean_y + major_vec[1] * major_len],
+        linestyle="-",
+        linewidth=2,
+        color=color,
+        alpha=alpha   # ✅ same as ellipse
+    )
+
+    # minor axis
+    ax.plot(
+        [mean_x - minor_vec[0] * minor_len,
+         mean_x + minor_vec[0] * minor_len],
+        [mean_y - minor_vec[1] * minor_len,
+         mean_y + minor_vec[1] * minor_len],
+        linestyle="-",
+        linewidth=2,
+        color=color,
+        alpha=alpha   # ✅ same as ellipse
+    )
+
+
+# %% [markdown]
+# ## calculate stats
+
+# %%
+def compute_stats(df):
+
+    obs = df["obs"].values
+    pred = df["pred"].values
+
+    mask = ~np.isnan(obs) & ~np.isnan(pred)
+    obs = obs[mask]
+    pred = pred[mask]
+
+    if len(obs) < 2:
+        return {}
+
+    residuals = pred - obs
+
+    # metrics
+    bias = np.mean(residuals)
+    rmse = np.sqrt(np.mean(residuals**2))
+
+    # NSE
+    denom = np.sum((obs - np.mean(obs))**2)
+    nse = 1 - np.sum((obs - pred)**2) / denom if denom > 0 else np.nan
+
+    # R²
+    r = np.corrcoef(obs, pred)[0, 1]
+    r2 = r**2
+
+    return {
+        "NSE": nse,
+        "Bias": bias,
+        "RMSE": rmse,
+        "R2": r2
+    }
+
+
+
+# %% [markdown]
+# # Time series graph Function
+
+# %%
+import math
+import matplotlib.pyplot as plt
+
+def plot_stage_timeseries(
+    tidy,
+    variable,
+    filters=None,
+    color_by=None,
+    marker_by=None,
+    linestyle_by=None,
+    panels_by=None,
+    max_cols=3,
+    panel_scale=1.0   # ✅ NEW
+):
+
+
+    # -------------------------------
+    # LINK linestyle to marker
+    # -------------------------------
+    if marker_by and linestyle_by is None:
+        linestyle_by = marker_by
+
+    df = get_stage_timeseries(tidy, variable, filters)
+
+    # -------------------------------
+    # ATTACH METADATA
+    # -------------------------------
+    meta_cols = ["branch", "file", "SimulationID"]
+    for col in [color_by, marker_by, linestyle_by, panels_by]:
+        if col and col not in meta_cols:
+            meta_cols.append(col)
+
+    meta = tidy[meta_cols].drop_duplicates()
+    df = df.merge(meta, on=["branch", "file", "SimulationID"], how="left")
+
+    # -------------------------------
+    # RESIDUALS
+    # -------------------------------
+    df["residual"] = df["pred"] - df["obs"]
+    
+    # -------------------------------
+    # GLOBAL Y LIMITS
+    # -------------------------------
+
+    # absolute (pred/obs)
+    ymin_main = np.nanmin([df["pred"], df["obs"]])
+    ymax_main = np.nanmax([df["pred"], df["obs"]])
+
+    # residual
+    ymin_res = np.nanmin(df["residual"])
+    ymax_res = np.nanmax(df["residual"])
+    
+    pad_main = 0.05 * (ymax_main - ymin_main)
+    pad_res  = 0.05 * (ymax_res  - ymin_res)
+
+    ymin_main -= pad_main
+    ymax_main += pad_main
+
+    ymin_res -= pad_res
+    ymax_res += pad_res
+    
+    max_abs = max(abs(ymin_res), abs(ymax_res))
+    
+    # -------------------------------
+    # STYLE MAPS
+    # -------------------------------
+    def build_map(values, base_dict):
+        values = sorted(values)
+        base_vals = list(base_dict.values())
+        return {v: base_vals[i % len(base_vals)] for i, v in enumerate(values)}
+
+    color_map, marker_map, line_map = {}, {}, {}
+
+    if color_by:
+        color_map = build_map(df[color_by].dropna().unique(), Colors)
+
+    if marker_by:
+        marker_map = build_map(df[marker_by].dropna().unique(), Markers)
+
+    if linestyle_by:
+        line_map = build_map(df[linestyle_by].dropna().unique(), Lines)
+
+    # -------------------------------
+    # PANEL SETUP
+    # -------------------------------
+    panel_vals = sorted(df[panels_by].dropna().unique()) if panels_by else [None]
+
+    n_panels = len(panel_vals)
+    ncols = min(max_cols, n_panels)
+    n_panel_rows = math.ceil(n_panels / max_cols)
+    nrows = n_panel_rows * 2
+
+    panel_size = 2.8 * panel_scale
+
+    height_ratios = []
+    for _ in range(n_panel_rows):
+        height_ratios.extend([1.0, 0.6])   # ✅ main + residual
+
+    fig, axes = plt.subplots(
+        nrows, ncols,
+        figsize=(panel_size * ncols, panel_size * nrows),
+        sharex=True,
+        gridspec_kw={
+            'height_ratios': height_ratios,
+            'hspace': 0.10,   # ✅ GOOD balance
+            'wspace': 0.15
+        }
+    )
+
+    axes = axes.reshape(nrows, ncols)
+
+    # -------------------------------
+    # PLOTTING
+    # -------------------------------
+    for i, panel_val in enumerate(panel_vals):
+
+        row = (i // ncols) * 2
+        col = i % ncols
+
+        ax_main = axes[row, col]
+        ax_res  = axes[row + 1, col]
+
+        gdf = df[df[panels_by] == panel_val] if panels_by else df
+
+        for _, sub in gdf.groupby(["branch", "file", "SimulationID"]):
+
+            sub = sub.sort_values("stage")
+
+            color_val = sub[color_by].iloc[0] if color_by else None
+            marker_val = sub[marker_by].iloc[0] if marker_by else None
+            linestyle_val = sub[linestyle_by].iloc[0] if linestyle_by else None
+
+            color = color_map.get(color_val, "grey")
+            marker = marker_map.get(marker_val, "o")
+            linestyle = line_map.get(linestyle_val, "-")
+
+            mask = sub["obs"].notna()
+
+            # --- main ---
+            ax_main.plot(
+                sub["stage"], sub["pred"],
+                color=color, linestyle=linestyle,
+                linewidth=1, alpha=0.35
+            )
+
+            ax_main.scatter(
+                sub.loc[mask, "stage"],
+                sub.loc[mask, "obs"],
+                facecolors="none",
+                edgecolors=color,
+                marker=marker,
+                s=40
+            )
+            
+            plt.xlim(0,10)
+
+            # --- residual ---
+            ax_res.scatter(
+                sub.loc[mask, "stage"],
+                sub.loc[mask, "residual"],
+                facecolors="none",
+                edgecolors=color,
+                marker=marker,
+                s=40
+            )
+            
+            plt.xlim(0,10)
+
+        # -----------------------
+        # TITLES
+        # -----------------------
+        if panel_val is not None:
+            ax_main.text(
+                0.02, 0.95, str(panel_val),
+                transform=ax_main.transAxes,
+                ha="left", va="top",
+                fontsize=11, fontweight="bold"
+            )
+
+        # -----------------------
+        # AXIS CLEANUP ✅
+        # -----------------------
+        if col == 0:
+            ax_main.set_ylabel(variable)
+            ax_res.set_ylabel("Residual")
+        else:
+            ax_main.set_ylabel("")
+            ax_res.set_ylabel("")
+            ax_main.set_yticklabels([])
+            ax_res.set_yticklabels([])
+
+        # only bottom row gets x labels
+        if row >= nrows - 2:
+            ax_res.set_xlabel("Stage")
+        else:
+            ax_res.set_xlabel("")
+
+        ax_main.grid(alpha=0.3)
+
+        ax_res.axhline(0, color="black", linestyle="--", linewidth=1)
+        ax_res.grid(alpha=0.3)
+        
+        ax_main.set_ylim(ymin_main, ymax_main)
+        ax_res.set_ylim(-max_abs, max_abs)
+
+    # -------------------------------
+    # REMOVE EMPTY AXES
+    # -------------------------------
+    total_slots = ncols * n_panel_rows
+    for j in range(n_panels, total_slots):
+        r = (j // ncols) * 2
+        c = j % ncols
+        fig.delaxes(axes[r, c])
+        fig.delaxes(axes[r + 1, c])
+
+    # ============================================================
+    # ✅ LEGEND (your working version)
+    # ============================================================
+    legend_objects = []
+
+    if color_by and color_map:
+        handles = [
+            plt.Line2D([0], [0],
+                marker='o',
+                color='w',
+                markerfacecolor=color_map[val],
+                label=str(val),
+                markersize=8
+            )
+            for val in sorted(color_map)
+        ]
+        legend_objects.append(
+            fig.legend(handles=handles, title=color_by,
+                       loc="upper center",
+                       ncol=min(len(handles), 6), frameon=False)
+        )
+
+    if marker_by and marker_map:
+        handles = [
+            plt.Line2D(
+                [0], [0],
+                marker=marker_map[val],
+                linestyle=line_map.get(val, "-"),
+                markerfacecolor="none",
+                markeredgecolor="black",
+                color="black",
+                label=str(val),
+                markersize=8
+            )
+            for val in sorted(marker_map)
+        ]
+        legend_objects.append(
+            fig.legend(handles=handles, title=marker_by,
+                       loc="upper center",
+                       ncol=min(len(handles), 6), frameon=False)
+        )
+
+    # ✅ dynamic layout
+    if legend_objects:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        inv = fig.transFigure.inverted()
+
+        heights = [
+            leg.get_window_extent(renderer).transformed(inv).height
+            for leg in legend_objects
+        ]
+
+        pad = 0.01
+        total_height = sum(heights) + pad * len(heights)
+
+        top_margin = max(0.2, 1 - total_height)
+        plt.subplots_adjust(top=top_margin)
+
+        y = 1.0
+        for leg, h in zip(legend_objects, heights):
+            leg.set_bbox_to_anchor((0.5, y), transform=fig.transFigure)
+            y -= (h + pad)
+
+    return fig
+
+
+# %% [markdown]
+# # Harvest predictions
+
+# %% [markdown]
+# ## Yield
 
 # %%
 plot_obs_pred_by_branch(
-    tidy,
-    "Wheat.Grain.Wt",
-    color_by = "Experiment",
-    marker_by = "Wheat.SowingData.Cultivar"
-)
-plt.show()
-
-# %%
-plot_obs_pred_by_branch(
-    tidy,
-    "Wheat.Grain.Wt",
-    color_by = "Wheat.SowingData.Cultivar",
-    marker_by = "Experiment",
-    filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
-)
-plt.show()
-
-# %%
-plot_obs_pred_by_branch(
-    tidy,
-    "Wheat.AboveGround.Wt",
+    tidy = tidy,
+    variable = "Wheat.Grain.Wt",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
     color_by = "Experiment",
     marker_by = "Wheat.SowingData.Cultivar",
-    mode="daily"
+    size_by=None,
+    show_ellipses=False    
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Grain.Wt",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+    show_ellipses=True    
+)
+plt.show()
+
+# %% [markdown]
+# ## Biomass
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ## Harvest Index
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "HarvestIndex",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "HarvestIndex",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "DevelopmentType",#"Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+    show_ellipses=True,
+)
+plt.show()
+
+# %% [markdown]
+# ## Grian Size
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Grain.Size",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Grain.Size",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "DevelopmentType",#"Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ## Grain Number
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Grain.Number",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "Experiment",
+    marker_by = "DevelopmentType",#"Wheat.SowingData.Cultivar",
+    size_by="DevelopmentType"
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Grain.Number",
+    mode='harvest',
+    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by=None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ## Dead Stem
+
+# %%
+# plot_obs_pred_by_branch(
+#     tidy = tidy,
+#     variable = "Wheat.Stem.Wt",
+#     mode='harvest',
+#     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+#     color_by = "Experiment",
+#     marker_by = "Wheat.SowingData.Cultivar",
+#     size_by=None
+# )
+# plt.show()
+
+# %% [markdown]
+# ## Dead Leaf
+
+# %%
+# plot_obs_pred_by_branch(
+#     tidy = tidy,
+#     variable = "Wheat.Leaf.Wt",
+#     mode='harvest',
+#     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
+#     color_by = "Experiment",
+#     marker_by = "Wheat.SowingData.Cultivar",
+#     size_by=None
+# )
+# plt.show()
+
+# %% [markdown]
+# # Growth cycle analysis
+
+# %% [markdown]
+# ## Haun Stage
+
+# %% [markdown]
+# ### obs vs pred daily
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Phenology.HaunStage",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Phenology.HaunStage",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Phenology.HaunStage",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By expt
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Phenology.HaunStage",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## NDVI
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Spectral.NDVI",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Spectral.NDVI",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Spectral.NDVI",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Spectral.NDVI",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## AboveGround Wt
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.Wt",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Leaf Live Wt
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.Wt",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.Wt",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Leaf Dead Wt
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.Wt",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="DevelopmentType",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.Wt",
+    filters={"branch": ["working"]},
+    color_by="DevelopmentType",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Stem Wt
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Stem.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Stem.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Wt",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="DevelopmentType",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Wt",
+    color_by="DevelopmentType",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Ear Weight
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Ear.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Ear.Wt",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.Wt",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.Wt",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## AboveGround N
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.N",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.AboveGround.N",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Leaf Live N
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.N",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.NConc",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.N",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Live.NConc",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Leaf Dead Wt
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.N",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.NConc",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.N",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Leaf.Dead.NConc",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Stem N
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.N",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.NConc",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.N",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Stem.Live.NConc",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %% [markdown]
+# ## Ear N
+
+# %% [markdown]
+# ### obs vs pred daily 
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Spike.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "Experiment",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None
+)
+plt.show()
+
+# %%
+plot_obs_pred_by_branch(
+    tidy = tidy,
+    variable = "Wheat.Spike.Live.N",
+    mode="daily",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by = "DevelopmentType",
+    marker_by = "Wheat.SowingData.Cultivar",
+    size_by = None,
+    show_ellipses=True
+)
+plt.show()
+
+# %% [markdown]
+# ### All expts
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.N",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.NConc",
+    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    color_by="Experiment",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="branch",
+    max_cols=3,
+    panel_scale=2,
+)
+
+plt.show()
+
+# %% [markdown]
+# ### By Experiment
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.N",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# %%
+plot_stage_timeseries(
+    tidy = tidy,
+    variable = "Wheat.Ear.NConc",
+    color_by="branch",
+    marker_by="Wheat.SowingData.Cultivar",
+    panels_by="Experiment",
+    filters=None,
+    max_cols=4,
+    panel_scale=0.8,
 )
 plt.show()
