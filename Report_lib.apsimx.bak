@@ -76,10 +76,16 @@
         " [Wheat].Total.Wt",
         " sum([Soil].NO3.kgha)",
         " sum([Soil].Water.MM)",
-        " [Spectral].NDVI"
+        " [Spectral].NDVI",
+        " 1.0 * [Wheat].Grain.Wt / ([Wheat].AboveGround.Wt + 0.00001) as HarvestIndex",
+        "1.0 * [Wheat].Leaf.Live.StorageWt / ([Wheat].Leaf.Live.Wt + 0.00001) as Wheat.Leaf.Live.WSCConc",
+        "1.0 * [Wheat].Leaf.Dead.StorageWt/([Wheat].Leaf.Dead.Wt + 0.00001) as Wheat.Leaf.Dead.WSCConc",
+        "1.0 * ([Wheat].Stem.Live.StorageWt+[Wheat].Stem.Dead.StorageWt) / ([Wheat].Stem.Wt + 0.00001) as Wheat.Stem.WSCConc",
+        "1.0 * ([Wheat].Spike.Live.StorageWt+[Wheat].Spike.Dead.StorageWt) / ([Wheat].Spike.Wt + 0.00001) as Wheat.Spike.WSCConc"
       ],
       "EventNames": [
-        "[Clock].DoReport"
+        "[Clock].DoReport",
+        "[Wheat].Harvesting"
       ],
       "GroupByVariableName": null,
       "Name": "AnalysisReport",
