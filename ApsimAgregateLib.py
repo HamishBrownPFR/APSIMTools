@@ -28,6 +28,7 @@ import warnings
 
 warnings.simplefilter("ignore", pd.errors.PerformanceWarning)
 
+## Color set for graphs
 Colors = {1:'#000000',
 2:'#E69F00',
 3:'#56B4E9',
@@ -57,7 +58,7 @@ Colors = {1:'#000000',
 27:'#17BECF',
 28:'#9EDAE5'}
 
-
+# marker set for graphs
 Markers = {
  1: 'o',   # circle
  2: '^',   # triangle up
@@ -74,6 +75,7 @@ Markers = {
 13: 'X',   # x-filled (optional)
 }
 
+#Line set for graphs
 Lines = {1: '-',
  2: '--',
  3: '-.',
@@ -90,9 +92,11 @@ Lines = {1: '-',
 }
 
 
-
 # %% [markdown]
 # # Helpers for setting up and running .apsim files
+
+# %% [markdown]
+# ## Shift branchs, build and run simulations
 
 # %%
 def validate_run_branches():
@@ -103,7 +107,6 @@ def validate_run_branches():
 # ======================
 # APSIM / DB UTILITIES
 # ======================
-
 def checkout_branch(branch):
     subprocess.run(["git", "checkout", branch],
                    cwd=REPO_PATH,
@@ -166,11 +169,8 @@ def reset_repo():
     )
 
 def read_table(db_file, table):
-    # if not db_file.exists():
-    #     return None
     with sqlite3.connect(db_file) as conn:
         df = pd.read_sql(f"SELECT * FROM [{table}]", conn)
-
   
     df.columns = [
         c.strip().replace('"', '').replace("'", '')
@@ -182,51 +182,10 @@ def read_table(db_file, table):
 def should_run(branch_name):
     return branch_name in RUN_BRANCHES
 
-def write_apply_file(sim_file):
-    """
-    Create an APSIM CLI apply file which:
-    - removes specified reports
-    - injects AnalysisReport
-    - sets variables
-    - saves and runs simulation
-    """
-
-    apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
-
-    lines = []
-
-    # ---------------------------------------------
-    # Add AnalysisReport to all Simulation nodes
-    # ---------------------------------------------
-    lines.append(f"add [AnalysisReport] from {REPORT_LIBRARY} to all [Zone]")
-    
-    # ---------------------------------------------
-    # Inject Spectral model into each simulation
-    # ---------------------------------------------
-    lines.append("add [Spectral] to all [Zone]")
-    
-    # ---------------------------------------------
-    # Hartogify cultivars
-    # ---------------------------------------------
-    lines.append("add new SetModelParamsBySimulation to [Zone] name ConstantBaseCv")
-    lines.append("[ConstantBaseCv].SetEventName = [Plant].PlantSowing")
-    lines.append(f"[ConstantBaseCv].ParameterFile = Inputs/{sim_file.stem}_ConstantPhenology.csv")
-
-    # ---------------------------------------------
-    # Save + run
-    # ---------------------------------------------
-    lines.append(f"save {sim_file}")
-    lines.append(f"run {sim_file}")
-
-    # Write file
-    apply_file.write_text("\n".join(lines))
-
-    return apply_file
-
 
 
 # %% [markdown]
-# # load_branch_data
+# ## load data from .db files for specific branch
 
 # %%
 def load_branch_data(branch_name, git_branch):
@@ -310,9 +269,6 @@ def load_branch_data(branch_name, git_branch):
                             "SimulationID",
                             "Simulation.Name",   # if present
                             "Experiment",
-                            "TOS",
-                            "Variety",
-                            "WaterTrt"
                         ] if c in pred.columns
                     ]
 
@@ -359,7 +315,7 @@ def load_all():
 
 
 # %% [markdown]
-# # Enforce indicies on observed data
+# ## Enforce indicies on observed data
 
 # %%
 def enforce_indices_to_observed(df, indices_to_fill):
@@ -384,10 +340,10 @@ def enforce_indices_to_observed(df, indices_to_fill):
 
 
 # %% [markdown]
-# # to_tidy
+# ## Fuction, to_tidy, which processes raw data into indexed format for graphing
 
 # %%
-def to_tidy(df):
+def to_tidy(df, additional_index_maps=None):
 
     df = df.copy()
 
@@ -467,14 +423,23 @@ def to_tidy(df):
     # ---------------------------------------------
     # ✅ Add development type index
     # ---------------------------------------------
-    tidy["DevelopmentType"] = tidy[f"{CROP}.SowingData.Cultivar"].map(Development_type)     
-    tidy["ProjectGroup"] = tidy["Experiment"].map(Project_group)
+    if additional_index_maps:
+        for new_col, spec in additional_index_maps.items():
+    
+            source_col = spec.get("source")
+            mapping = spec.get("map")
+    
+            if source_col in tidy.columns:
+                tidy[new_col] = tidy[source_col].map(mapping)
 
     return tidy.dropna(subset=["value"])
 
 
 # %% [markdown]
 # # Functions to get data for graphing
+
+# %% [markdown]
+# ## Get data from harvest events
 
 # %%
 def get_harvest_aligned(tidy, variable, filters=None):
@@ -555,6 +520,9 @@ def get_harvest_aligned(tidy, variable, filters=None):
     return aligned
 
 
+# %% [markdown]
+# ## Get data from all daily measurements
+
 # %%
 def get_daily_obs_pred_exact(tidy, variable, filters=None):
 
@@ -577,6 +545,9 @@ def get_daily_obs_pred_exact(tidy, variable, filters=None):
 
     return aligned
 
+
+# %% [markdown]
+# ## Filter out unwanted data
 
 # %%
 def apply_filters(tidy, filters):
@@ -625,6 +596,9 @@ def apply_filters(tidy, filters):
 
     return df
 
+
+# %% [markdown]
+# ## Get daily data for time series plots
 
 # %%
 def get_stage_timeseries(tidy, variable, filters=None):
@@ -690,7 +664,10 @@ def get_stage_timeseries(tidy, variable, filters=None):
 
 
 # %% [markdown]
-# # Function plot observed vs predicted by branch
+# # Graphing Functions
+
+# %% [markdown]
+# ## Function plot observed vs predicted by branch
 
 # %%
 def plot_obs_pred_by_branch(
@@ -1088,7 +1065,7 @@ def compute_stats(df):
 
 
 # %% [markdown]
-# # Time series graph Function
+# ## Time series graph Function
 
 # %%
 import math
@@ -1374,10 +1351,10 @@ def plot_stage_timeseries(
 
 
 # %% [markdown]
-# # Test Examples
+# # Test Example - run simulations and process data
 
 # %% [markdown]
-# # Settings
+# ## Branch and file Settings
 
 # %%
 # ======================
@@ -1414,7 +1391,11 @@ APSIM_SOLUTION = r"C:\GitHubRepos\ApsimX\ApsimX.sln"
 
 REPORT_LIBRARY = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
 
+# %% [markdown]
+# ## Additionl index mapping
+
 # %%
+# Specifiy map for cultivars to winter or spring type
 Development_type={
 '29B':'Spring',
 '5A':'Spring',
@@ -1450,6 +1431,7 @@ Development_type={
 'Zanzibar':'Spring',
 }
 
+# Specify map for each experiment to project grouping
 Project_group = {
     'Minnipa2014':'GxExM',
     'Minnipa2015':'GxExM',
@@ -1472,14 +1454,79 @@ Project_group = {
     'Gnarwarre2025':'EVA'
 }
 
+# Pack maps together ready to be inserted as indexes 
+additional_index_maps = {
+    "DevelopmentType": {
+        "source": "Wheat.SowingData.Cultivar",
+        "map": Development_type
+    },
+    "ProjectGroup": {
+        "source": "Experiment",
+        "map": Project_group
+    }
+}
+
+
+# %% [markdown]
+# ## Write file for command line tool to apply to each .apsimx file to be run.
+# If you want to make standard modifications to all files run it can be done here
+
+# %%
+# this function writes and apply file that the CLI
+def write_apply_file(sim_file):
+    """
+    Create an APSIM CLI apply file which:
+    - removes specified reports
+    - injects AnalysisReport
+    - sets variables
+    - saves and runs simulation
+    """
+
+    apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
+
+    lines = []
+
+    # ---------------------------------------------
+    # Add AnalysisReport to all Simulation nodes
+    # ---------------------------------------------
+    lines.append(f"add [AnalysisReport] from {REPORT_LIBRARY} to all [Zone]")
+    
+    # ---------------------------------------------
+    # Inject Spectral model into each simulation
+    # ---------------------------------------------
+    lines.append("add [Spectral] to all [Zone]")
+    
+    # ---------------------------------------------
+    # Hartogify cultivars
+    # ---------------------------------------------
+    lines.append("add new SetModelParamsBySimulation to [Zone] name ConstantBaseCv")
+    lines.append("[ConstantBaseCv].SetEventName = [Plant].PlantSowing")
+    lines.append(f"[ConstantBaseCv].ParameterFile = Inputs/{sim_file.stem}_ConstantPhenology.csv")
+
+    # ---------------------------------------------
+    # Save + run
+    # ---------------------------------------------
+    lines.append(f"save {sim_file}")
+    lines.append(f"run {sim_file}")
+
+    # Write file
+    apply_file.write_text("\n".join(lines))
+
+    return apply_file
+
+
+
+# %% [markdown]
+# ## Run simulations and read in raw .db data and process into tidy format
+
 # %%
 # ======================
-# RUN CONTROL
+# RUN CONTROL - Specify which branches to (re)run
 # ======================
 
 # Options:
-#RUN_BRANCHES = []                    # run nothing (use existing DBs)
-RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
@@ -1490,30 +1537,31 @@ validate_run_branches()
 # EXECUTE PIPELINE
 # ======================
 
+# Read in raw data
 raw = load_all()
 
-# %%
 # ✅ Ensure SimulationName exists (from AnalysisReport)
 if "Simulation.Name" in raw.columns:
     raw = raw.rename(columns={"Simulation.Name": "SimulationName"})
 
 # ✅ Convert to tidy format
-tidy = to_tidy(raw)
-
-#tidy = tidy[~tidy["Experiment"].isin(['DookieEVA2024','DookieEVA2025'])]
+tidy = to_tidy(raw, additional_index_maps=index_maps)
 
 # %% [markdown]
-# # Harvest predictions
+# # Test Example - created graphs
 
 # %% [markdown]
-# ## Yield
+# ## Harvest graphs
+
+# %% [markdown]
+# ### Yield
 
 # %%
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
-    filters = {"ProjectGroup":['WWHI']},
+    #filters = {"ProjectGroup":['WWHI']},
     color_by = "Experiment",
     marker_by = "DevelopmentType",
     size_by=None
@@ -1546,7 +1594,7 @@ plot_obs_pred_by_branch(
 plt.show()
 
 # %% [markdown]
-# ## Biomass
+# ### Biomass
 
 # %%
 plot_obs_pred_by_branch(
@@ -1574,13 +1622,13 @@ plot_obs_pred_by_branch(
 plt.show()
 
 # %% [markdown]
-# # Growth cycle analysis
+# ## Growth cycle analysis
 
 # %% [markdown]
-# ## Haun Stage
+# ### Haun Stage
 
 # %% [markdown]
-# ### obs vs pred daily
+# #### obs vs pred daily
 
 # %%
 plot_obs_pred_by_branch(
@@ -1608,7 +1656,7 @@ plot_obs_pred_by_branch(
 plt.show()
 
 # %% [markdown]
-# ### All expts
+# #### All expts
 
 # %%
 plot_stage_timeseries(
@@ -1625,7 +1673,7 @@ plot_stage_timeseries(
 plt.show()
 
 # %% [markdown]
-# ### By expt
+# #### By expt
 
 # %%
 plot_stage_timeseries(
