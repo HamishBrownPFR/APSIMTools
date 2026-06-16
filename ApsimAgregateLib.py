@@ -13,20 +13,10 @@
 # ---
 
 # %% [markdown]
-# # Constants
+# # Style
 
 # %%
-from pathlib import Path
-import pandas as pd
-import sqlite3
-import numpy as np
-import subprocess
-import matplotlib.pyplot as plt
-import shutil
-from matplotlib.patches import Ellipse
-import warnings
-
-warnings.simplefilter("ignore", pd.errors.PerformanceWarning)
+# %%writefile C:\GitHubRepos\APSIMTools\GraphLib\apsim_tools\style.py
 
 ## Color set for graphs
 Colors = {1:'#000000',
@@ -91,36 +81,48 @@ Lines = {1: '-',
  13: '-',
 }
 
-
 # %% [markdown]
-# # Helpers for setting up and running .apsim files
-
-# %% [markdown]
-# ## Shift branchs, build and run simulations
+# # Runner - helpers for setting up and running .apsim files
 
 # %%
-def validate_run_branches():
-    invalid = [b for b in RUN_BRANCHES if b not in BRANCHES]
+# %%writefile C:\GitHubRepos\APSIMTools\GraphLib\apsim_tools\runner.py
+
+from pathlib import Path
+import pandas as pd
+import sqlite3
+import numpy as np
+import subprocess
+import shutil
+import warnings
+
+from apsim_tools.style import Colors, Markers, Lines
+
+warnings.simplefilter("ignore", pd.errors.PerformanceWarning)
+
+
+#__________________________________________________________
+# Shift branchs, build and run simulations
+#----------------------------------------------------------
+
+def validate_run_branches(config):
+    invalid = [b for b in config["run_branches"] if b not in config["branches"]]
     if invalid:
         raise ValueError(f"Invalid RUN_BRANCHES: {invalid}")
 
-# ======================
-# APSIM / DB UTILITIES
-# ======================
-def checkout_branch(branch):
+def checkout_branch(branch, config):
     subprocess.run(["git", "checkout", branch],
-                   cwd=REPO_PATH,
+                   cwd=config["repo_path"],
                    check=True)
 
-def build_apsim():
+def build_apsim(config):
     subprocess.run(
-        ["dotnet", "build", APSIM_SOLUTION, "-c", "Release"],
-        cwd=REPO_PATH,
+        ["dotnet", "build", config["apsim_solution"], "-c", "Release"],
+        cwd=config["repo_path"],
         check=True
     )
     return 
     
-def run_apsim(sim_file):
+def run_apsim(sim_file, config):
     """
     High-level runner:
     - writes apply file
@@ -128,9 +130,9 @@ def run_apsim(sim_file):
     """
 
     apply_file = write_apply_file(sim_file)
-    return run_apsim_with_apply(sim_file, apply_file)
+    return run_apsim_with_apply(sim_file, apply_file, config)
 
-def run_apsim_with_apply(sim_file, apply_file):
+def run_apsim_with_apply(sim_file, apply_file, config):
     """
     Executes APSIM using a pre-generated apply file.
     """
@@ -139,7 +141,7 @@ def run_apsim_with_apply(sim_file, apply_file):
 
     result = subprocess.run(
         [
-            APSIM_EXE,
+            config["apsim_exe"],
             sim_file,
             "--apply",
             apply_file
@@ -159,12 +161,12 @@ def db_path(sim_file):
 def branch_db_path(sim_file, branch):
     return sim_file.parent / f"{sim_file.stem}_{branch}.db"
 
-def reset_repo():
+def reset_repo(config):
     print("🔄 Resetting tracked files only")
 
     subprocess.run(
         ["git", "reset", "--hard"],
-        cwd=REPO_PATH,
+        cwd=config["repo_path"],
         check=True
     )
 
@@ -179,31 +181,36 @@ def read_table(db_file, table):
 
     return df
 
-def should_run(branch_name):
-    return branch_name in RUN_BRANCHES
+def should_run(branch_name, config):
+    return branch_name in config["run_branches"]
 
 
+def load_all(config):
+    return pd.concat([
+        load_branch_data(name, git_branch, config)
+        for name, git_branch in config["branches"].items()
+    ], ignore_index=True)
 
-# %% [markdown]
-# ## load data from .db files for specific branch
+#__________________________________________________________
+# load data from .db files for specific branch
+#----------------------------------------------------------
 
-# %%
-def load_branch_data(branch_name, git_branch):
-    if should_run(branch_name):
-        reset_repo()
-        checkout_branch(git_branch)
-        build_apsim()
+def load_branch_data(branch_name, git_branch, config):
+    if should_run(branch_name, config):
+        reset_repo(config)
+        checkout_branch(git_branch, config)
+        build_apsim(config)
 
     frames = []
 
-    for sim in SIM_FILES:
+    for sim in config["sim_files"]:
         db = branch_db_path(sim, branch_name)
 
         # --- Run APSIM ---
-        if should_run(branch_name):
+        if should_run(branch_name, config):
             print("")
             print(f"▶ Running APSIM [{branch_name}]: {sim.name}")
-            run_apsim(sim)
+            run_apsim(sim, config)
 
             original_db = sim.with_suffix(".db")
             branch_db = branch_db_path(sim, branch_name)
@@ -307,17 +314,12 @@ def load_branch_data(branch_name, git_branch):
 
     return pd.concat(frames, ignore_index=True)
 
-def load_all():
-    return pd.concat([
-        load_branch_data(name, git_branch)
-        for name, git_branch in BRANCHES.items()
-    ], ignore_index=True)
 
 
-# %% [markdown]
-# ## Enforce indicies on observed data
+#__________________________________________________________
+# Enforce indicies on observed data
+#----------------------------------------------------------
 
-# %%
 def enforce_indices_to_observed(df, indices_to_fill):
 
     keys = ["branch", "file", "SimulationID"]
@@ -339,10 +341,10 @@ def enforce_indices_to_observed(df, indices_to_fill):
     return pd.concat([pred.reset_index(), obs.reset_index()], ignore_index=True)
 
 
-# %% [markdown]
-# ## Fuction, to_tidy, which processes raw data into indexed format for graphing
+#__________________________________________________________
+# Fuction which processes raw data into indexed format for graphing
+#----------------------------------------------------------
 
-# %%
 def to_tidy(df, config, additional_index_maps=None):
 
     df = df.copy()
@@ -378,10 +380,7 @@ def to_tidy(df, config, additional_index_maps=None):
     possible_numeric = df.columns.difference(protected_cols)
 
     for col in possible_numeric:
-        try:
-            df[col] = pd.to_numeric(df[col])
-        except:
-            pass
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 
@@ -434,14 +433,20 @@ def to_tidy(df, config, additional_index_maps=None):
 
     return tidy.dropna(subset=["value"])
 
-
 # %% [markdown]
-# # Functions to get data for graphing
-
-# %% [markdown]
-# ## Get data from harvest events
+# # Data - functions to get data for graphing
 
 # %%
+# %%writefile C:\GitHubRepos\APSIMTools\GraphLib\apsim_tools\data.py
+
+
+import pandas as pd
+import numpy as np
+
+#__________________________________________________________
+# Get data from harvest events
+#----------------------------------------------------------
+
 def get_harvest_aligned(tidy, config, variable, filters=None):
     """
     Align data at harvest stage (HarvestRipe).
@@ -519,11 +524,10 @@ def get_harvest_aligned(tidy, config, variable, filters=None):
 
     return aligned
 
+#__________________________________________________________
+# Get data from all daily measurements
+#----------------------------------------------------------
 
-# %% [markdown]
-# ## Get data from all daily measurements
-
-# %%
 def get_daily_obs_pred_exact(tidy, variable, filters=None):
 
     df = apply_filters(tidy, filters)
@@ -545,11 +549,10 @@ def get_daily_obs_pred_exact(tidy, variable, filters=None):
 
     return aligned
 
+#__________________________________________________________
+# Filter out unwanted data
+#----------------------------------------------------------
 
-# %% [markdown]
-# ## Filter out unwanted data
-
-# %%
 def apply_filters(tidy, filters):
 
     if filters is None:
@@ -597,10 +600,7 @@ def apply_filters(tidy, filters):
     return df
 
 
-# %% [markdown]
-# ## Get daily data for time series plots
 
-# %%
 def get_stage_timeseries(tidy, config, variable, filters=None):
 
     df = apply_filters(tidy, filters)
@@ -663,12 +663,33 @@ def get_stage_timeseries(tidy, config, variable, filters=None):
 
 
 # %% [markdown]
-# # Graphing Functions
-
-# %% [markdown]
-# ## Function plot observed vs predicted by branch
+# # Graphing
 
 # %%
+# %%writefile C:\GitHubRepos\APSIMTools\GraphLib\apsim_tools\graphing.py
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+import math
+
+from apsim_tools.data import (
+    get_harvest_aligned,
+    get_daily_obs_pred_exact,
+    get_stage_timeseries
+)
+
+from apsim_tools.style import (
+    Colors,
+    Markers,
+    Lines
+)
+
+
+#__________________________________________________________
+#  Function plot observed vs predicted by branch
+#----------------------------------------------------------
+
 def plot_obs_pred_by_branch(
     tidy,
     config,
@@ -678,7 +699,8 @@ def plot_obs_pred_by_branch(
     color_by=None,
     marker_by=None,
     size_by=None,
-    show_ellipses=False
+    show_ellipses=False,
+    additional_index_maps=None
 ):
     
     # -------------------------------
@@ -696,11 +718,26 @@ def plot_obs_pred_by_branch(
     # -------------------------------
     # ATTACH METADATA
     # -------------------------------
-    meta = tidy[[
-        "branch", "file", "SimulationID",
-        "Experiment", config["cultivar_col"],"DevelopmentType", "ProjectGroup"
-    ]].drop_duplicates()
+    meta_cols = [
+        "branch",
+        "file",
+        "SimulationID",
+        "Experiment",
+        config["cultivar_col"],
+        ]
 
+
+    # ✅ always include grouping dimensions automatically
+    for col in [color_by, marker_by, size_by]:
+        if col and col in tidy.columns:
+            meta_cols.append(col)
+    
+    meta_cols = list(set(meta_cols))  # remove duplicates
+    meta_cols = [c for c in meta_cols if c in tidy.columns]
+
+    
+    meta = tidy[meta_cols].drop_duplicates()
+    
     pivot = pivot.merge(
         meta,
         on=["branch", "file", "SimulationID"],
@@ -932,11 +969,9 @@ def plot_obs_pred_by_branch(
 
     return fig
 
-
-# %% [markdown]
-# ## Add variance ellipses
-
-# %%
+#__________________________________________________________
+# Add variance ellipses
+#----------------------------------------------------------
 
 # The ellipse dimensions are based on:
 
@@ -1023,12 +1058,11 @@ def add_confidence_ellipse(ax, x, y, color, n_std=2.0, alpha=0.2):
         color=color,
         alpha=alpha   # ✅ same as ellipse
     )
+    
+#__________________________________________________________
+# calculate stats
+#----------------------------------------------------------
 
-
-# %% [markdown]
-# ## calculate stats
-
-# %%
 def compute_stats(df):
 
     obs = df["obs"].values
@@ -1062,15 +1096,9 @@ def compute_stats(df):
         "R2": r2
     }
 
-
-
-# %% [markdown]
-# ## Time series graph Function
-
-# %%
-import math
-import matplotlib.pyplot as plt
-
+#__________________________________________________________
+# Time series graph Function
+#----------------------------------------------------------
 def plot_stage_timeseries(
     tidy,
     variable,
@@ -1091,7 +1119,7 @@ def plot_stage_timeseries(
     if marker_by and linestyle_by is None:
         linestyle_by = marker_by
 
-    df = get_stage_timeseries(tidy, variable, config, filters)
+    df = get_stage_timeseries(tidy, config, variable, filters)
 
     # -------------------------------
     # ATTACH METADATA
@@ -1350,9 +1378,41 @@ def plot_stage_timeseries(
 
     return fig
 
-
 # %% [markdown]
 # # Test Example - run simulations and process data
+
+# %% [markdown]
+# ## read in libraries
+
+# %%
+import sys
+sys.path.append(r"C:\GitHubRepos\APSIMTools\GraphLib")
+
+# %load_ext autoreload
+# %autoreload 2
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pathlib import Path
+
+# graph models
+from apsim_tools.graphing import (
+    plot_obs_pred_by_branch,
+    plot_stage_timeseries
+)
+
+from apsim_tools.style import ( 
+    Colors, 
+    Markers,
+    Lines
+)
+
+from apsim_tools.runner import (
+    load_all,
+    validate_run_branches,
+    to_tidy
+)
 
 # %% [markdown]
 # ## Branch and file Settings
@@ -1361,22 +1421,22 @@ def plot_stage_timeseries(
 # ======================
 # CONFIG
 # ======================
-
-CROP_CONFIG = {
-    "stage_var": "Wheat.Phenology.Stage",
-    "stage_name_var": "Wheat.Phenology.CurrentStageName",
-    "harvest_stage": "HarvestRipe",
-    "cultivar_col": "Wheat.SowingData.Cultivar"
-}
-
-
 BRANCHES = {
     "master": "UoM_Wheat",
     "working": "WheatNeil",
     "working V2": "WheatHamish"
 }
 
-REPO_PATH = Path(r"C:\GitHubRepos\ApsimX")
+# ======================
+# RUN CONTROL - Specify which branches to (re)run
+# ======================
+
+# Options:
+#RUN_BRANCHES = []                    # run nothing (use existing DBs)
+RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+#RUN_BRANCHES = ["master"]
+#RUN_BRANCHES = ["working"]
+#RUN_BRANCHES = ["working V2"]
 
 SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
@@ -1392,11 +1452,20 @@ SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Turretfield2024.apsimx')
 ]
 
-APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe"
+CONFIG = {
+    "branches": BRANCHES,
+    "run_branches": RUN_BRANCHES,
+    "sim_files": SIM_FILES,
+    "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
+    "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
+    "apsim_solution": r"C:\GitHubRepos\ApsimX\ApsimX.sln",
+    "stage_var": "Wheat.Phenology.Stage",
+    "stage_name_var": "Wheat.Phenology.CurrentStageName",
+    "harvest_stage": "HarvestRipe",
+    "cultivar_col": "Wheat.SowingData.Cultivar"
+}
 
-APSIM_SOLUTION = r"C:\GitHubRepos\ApsimX\ApsimX.sln"
-
-REPORT_LIBRARY = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
+validate_run_branches(config=CONFIG)
 
 # %% [markdown]
 # ## Additionl index mapping
@@ -1473,12 +1542,13 @@ additional_index_maps = {
     }
 }
 
-
 # %% [markdown]
 # ## Write file for command line tool to apply to each .apsimx file to be run.
 # If you want to make standard modifications to all files run it can be done here
 
 # %%
+REPORT_LIBRARY = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
+
 # this function writes and apply file that the CLI
 def write_apply_file(sim_file):
     """
@@ -1522,37 +1592,23 @@ def write_apply_file(sim_file):
     return apply_file
 
 
-
 # %% [markdown]
 # ## Run simulations and read in raw .db data and process into tidy format
 
 # %%
 # ======================
-# RUN CONTROL - Specify which branches to (re)run
-# ======================
-
-# Options:
-RUN_BRANCHES = []                    # run nothing (use existing DBs)
-#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
-#RUN_BRANCHES = ["master"]
-#RUN_BRANCHES = ["working"]
-#RUN_BRANCHES = ["working V2"]
-
-validate_run_branches()
-
-# ======================
 # EXECUTE PIPELINE
 # ======================
 
 # Read in raw data
-raw = load_all()
+raw = load_all(config=CONFIG)
 
 # ✅ Ensure SimulationName exists (from AnalysisReport)
 if "Simulation.Name" in raw.columns:
     raw = raw.rename(columns={"Simulation.Name": "SimulationName"})
 
 # ✅ Convert to tidy format
-tidy = to_tidy(raw, config=CROP_CONFIG, additional_index_maps=additional_index_maps)
+tidy = to_tidy(raw, config=CONFIG, additional_index_maps=additional_index_maps)
 
 # %% [markdown]
 # # Test Example - created graphs
@@ -1566,10 +1622,10 @@ tidy = to_tidy(raw, config=CROP_CONFIG, additional_index_maps=additional_index_m
 # %%
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
-    filters = {"ProjectGroup":['WWHI']},
+    #filters = {"ProjectGroup":['WWHI']},
     color_by = "Experiment",
     marker_by = "DevelopmentType",
     size_by=None
@@ -1579,7 +1635,7 @@ graph.savefig("Yield WWHI.jpg")
 # %%
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
     filters = {"ProjectGroup":['WWHI']},
@@ -1592,7 +1648,7 @@ graph.savefig("Yield GxExM.jpg")
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1609,7 +1665,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.AboveGround.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1622,7 +1678,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.AboveGround.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1645,7 +1701,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     mode="daily",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
@@ -1658,7 +1714,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     mode="daily",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
@@ -1675,7 +1731,7 @@ plt.show()
 # %%
 plot_stage_timeseries(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
     color_by="Experiment",
@@ -1693,7 +1749,7 @@ plt.show()
 # %%
 plot_stage_timeseries(
     tidy = tidy,
-    config = CROP_CONFIG,
+    config = CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     color_by="DevelopmentType",
     marker_by=None,
