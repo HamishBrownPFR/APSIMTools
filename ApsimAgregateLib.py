@@ -343,7 +343,7 @@ def enforce_indices_to_observed(df, indices_to_fill):
 # ## Fuction, to_tidy, which processes raw data into indexed format for graphing
 
 # %%
-def to_tidy(df, additional_index_maps=None):
+def to_tidy(df, config, additional_index_maps=None):
 
     df = df.copy()
 
@@ -358,8 +358,8 @@ def to_tidy(df, additional_index_maps=None):
         "SimulationID",
         "CheckpointID",
         "Clock.Today",
-        f"{CROP}.Phenology.CurrentStageName",
-        f"{CROP}.SowingData.Cultivar",
+        config["stage_name_var"],
+        config["cultivar_col"],
         "SimulationName",
         "Experiment",
         "Zone",
@@ -401,10 +401,10 @@ def to_tidy(df, additional_index_maps=None):
     # ---------------------------------------------
     # ✅ Enforce indices BEFORE melt
     # ---------------------------------------------
-    indices_to_fill = ['Experiment','SimulationName',f'{CROP}.SowingData.Cultivar']
+    indices_to_fill = ['Experiment','SimulationName',config["cultivar_col"]]
     df = enforce_indices_to_observed(df, indices_to_fill)
     
-    col = f"{CROP}.SowingData.Cultivar"
+    col = config["cultivar_col"]
 
     df[col] = df.groupby(
         ["branch", "file", "SimulationID"]
@@ -442,7 +442,7 @@ def to_tidy(df, additional_index_maps=None):
 # ## Get data from harvest events
 
 # %%
-def get_harvest_aligned(tidy, variable, filters=None):
+def get_harvest_aligned(tidy, config, variable, filters=None):
     """
     Align data at harvest stage (HarvestRipe).
 
@@ -465,10 +465,10 @@ def get_harvest_aligned(tidy, variable, filters=None):
     # -------------------------------
     # HARVEST FILTER (implicit)
     # -------------------------------
-    if f"{CROP}.Phenology.CurrentStageName" not in df.columns:
-        raise KeyError(f"Missing {CROP}.Phenology.CurrentStageName in tidy data")
+    if config["stage_name_var"] not in df.columns:
+        raise KeyError(f"Missing {config['stage_name_var']} in tidy data")
 
-    df = df[df[f"{CROP}.Phenology.CurrentStageName"] == "HarvestRipe"]
+    df = df[df[config["stage_name_var"]] == config["harvest_stage"]]
 
     # -------------------------------
     # Slice out variable to graph
@@ -601,12 +601,11 @@ def apply_filters(tidy, filters):
 # ## Get daily data for time series plots
 
 # %%
-def get_stage_timeseries(tidy, variable, filters=None):
+def get_stage_timeseries(tidy, config, variable, filters=None):
 
     df = apply_filters(tidy, filters)
 
     keys = ["branch", "file", "SimulationID", "Clock.Today"]
-    stage_var = f"{CROP}.Phenology.Stage"
 
     # -------------------------------
     # Extract predicted variable
@@ -621,7 +620,7 @@ def get_stage_timeseries(tidy, variable, filters=None):
     # -------------------------------
     stage = df[
         (df["type"] == "pred") &
-        (df["variable"] == stage_var)
+        (df["variable"] == config["stage_var"])
     ][keys + ["value"]].rename(columns={"value": "stage"})
 
     # -------------------------------
@@ -672,6 +671,7 @@ def get_stage_timeseries(tidy, variable, filters=None):
 # %%
 def plot_obs_pred_by_branch(
     tidy,
+    config,
     variable,
     mode="harvest",
     filters=None,
@@ -685,10 +685,10 @@ def plot_obs_pred_by_branch(
     # ALIGN DATA
     # -------------------------------
     if mode == "harvest":
-        pivot = get_harvest_aligned(tidy, variable, filters)
+        pivot = get_harvest_aligned(tidy, config, variable, filters)
 
     elif mode == "daily":
-        pivot = get_daily_obs_pred_exact(tidy, variable, filters)#get_daily_aligned(tidy, variable, filters)
+        pivot = get_daily_obs_pred_exact(tidy, variable, filters)
 
     else:
         raise ValueError("mode must be 'harvest' or 'daily'")
@@ -698,7 +698,7 @@ def plot_obs_pred_by_branch(
     # -------------------------------
     meta = tidy[[
         "branch", "file", "SimulationID",
-        "Experiment", f"{CROP}.SowingData.Cultivar","DevelopmentType", "ProjectGroup"
+        "Experiment", config["cultivar_col"],"DevelopmentType", "ProjectGroup"
     ]].drop_duplicates()
 
     pivot = pivot.merge(
@@ -1074,6 +1074,7 @@ import matplotlib.pyplot as plt
 def plot_stage_timeseries(
     tidy,
     variable,
+    config,
     filters=None,
     color_by=None,
     marker_by=None,
@@ -1090,7 +1091,7 @@ def plot_stage_timeseries(
     if marker_by and linestyle_by is None:
         linestyle_by = marker_by
 
-    df = get_stage_timeseries(tidy, variable, filters)
+    df = get_stage_timeseries(tidy, variable, config, filters)
 
     # -------------------------------
     # ATTACH METADATA
@@ -1361,7 +1362,13 @@ def plot_stage_timeseries(
 # CONFIG
 # ======================
 
-CROP = 'Wheat'
+CROP_CONFIG = {
+    "stage_var": "Wheat.Phenology.Stage",
+    "stage_name_var": "Wheat.Phenology.CurrentStageName",
+    "harvest_stage": "HarvestRipe",
+    "cultivar_col": "Wheat.SowingData.Cultivar"
+}
+
 
 BRANCHES = {
     "master": "UoM_Wheat",
@@ -1545,7 +1552,7 @@ if "Simulation.Name" in raw.columns:
     raw = raw.rename(columns={"Simulation.Name": "SimulationName"})
 
 # ✅ Convert to tidy format
-tidy = to_tidy(raw, additional_index_maps=index_maps)
+tidy = to_tidy(raw, config=CROP_CONFIG, additional_index_maps=additional_index_maps)
 
 # %% [markdown]
 # # Test Example - created graphs
@@ -1559,9 +1566,10 @@ tidy = to_tidy(raw, additional_index_maps=index_maps)
 # %%
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
-    #filters = {"ProjectGroup":['WWHI']},
+    filters = {"ProjectGroup":['WWHI']},
     color_by = "Experiment",
     marker_by = "DevelopmentType",
     size_by=None
@@ -1571,6 +1579,7 @@ graph.savefig("Yield WWHI.jpg")
 # %%
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
     filters = {"ProjectGroup":['WWHI']},
@@ -1583,6 +1592,7 @@ graph.savefig("Yield GxExM.jpg")
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1599,6 +1609,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.AboveGround.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1611,6 +1622,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.AboveGround.Wt",
     mode='harvest',
     filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
@@ -1633,6 +1645,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     mode="daily",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
@@ -1645,6 +1658,7 @@ plt.show()
 # %%
 plot_obs_pred_by_branch(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     mode="daily",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
@@ -1661,6 +1675,7 @@ plt.show()
 # %%
 plot_stage_timeseries(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
     color_by="Experiment",
@@ -1678,6 +1693,7 @@ plt.show()
 # %%
 plot_stage_timeseries(
     tidy = tidy,
+    config = CROP_CONFIG,
     variable = "Wheat.Phenology.HaunStage",
     color_by="DevelopmentType",
     marker_by=None,
