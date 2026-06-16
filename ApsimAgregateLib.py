@@ -122,23 +122,16 @@ def build_apsim(config):
     )
     return 
     
-def run_apsim(sim_file, config):
+def run_apsim(sim_file, config, apply_fn):
     """
     High-level runner:
     - writes apply file
     - runs APSIM
     """
-
-    apply_file = write_apply_file(sim_file)
-    return run_apsim_with_apply(sim_file, apply_file, config)
-
-def run_apsim_with_apply(sim_file, apply_file, config):
-    """
-    Executes APSIM using a pre-generated apply file.
-    """
-
     print(f"▶ Running APSIM: {sim_file.name}")
 
+    apply_file = apply_fn(sim_file)
+    
     result = subprocess.run(
         [
             config["apsim_exe"],
@@ -185,9 +178,9 @@ def should_run(branch_name, config):
     return branch_name in config["run_branches"]
 
 
-def load_all(config):
+def load_all(config, apply_fn):
     return pd.concat([
-        load_branch_data(name, git_branch, config)
+        load_branch_data(name, git_branch, config, apply_fn)
         for name, git_branch in config["branches"].items()
     ], ignore_index=True)
 
@@ -195,7 +188,7 @@ def load_all(config):
 # load data from .db files for specific branch
 #----------------------------------------------------------
 
-def load_branch_data(branch_name, git_branch, config):
+def load_branch_data(branch_name, git_branch, config, apply_fn):
     if should_run(branch_name, config):
         reset_repo(config)
         checkout_branch(git_branch, config)
@@ -210,7 +203,7 @@ def load_branch_data(branch_name, git_branch, config):
         if should_run(branch_name, config):
             print("")
             print(f"▶ Running APSIM [{branch_name}]: {sim.name}")
-            run_apsim(sim, config)
+            run_apsim(sim, config, apply_fn)
 
             original_db = sim.with_suffix(".db")
             branch_db = branch_db_path(sim, branch_name)
@@ -1542,13 +1535,12 @@ additional_index_maps = {
     }
 }
 
+
 # %% [markdown]
 # ## Write file for command line tool to apply to each .apsimx file to be run.
 # If you want to make standard modifications to all files run it can be done here
 
 # %%
-REPORT_LIBRARY = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
-
 # this function writes and apply file that the CLI
 def write_apply_file(sim_file):
     """
@@ -1558,7 +1550,7 @@ def write_apply_file(sim_file):
     - sets variables
     - saves and runs simulation
     """
-
+    report_library = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
     apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
 
     lines = []
@@ -1566,7 +1558,7 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     # Add AnalysisReport to all Simulation nodes
     # ---------------------------------------------
-    lines.append(f"add [AnalysisReport] from {REPORT_LIBRARY} to all [Zone]")
+    lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
     
     # ---------------------------------------------
     # Inject Spectral model into each simulation
@@ -1601,7 +1593,7 @@ def write_apply_file(sim_file):
 # ======================
 
 # Read in raw data
-raw = load_all(config=CONFIG)
+raw = load_all(config=CONFIG, apply_fn=write_apply_file)
 
 # ✅ Ensure SimulationName exists (from AnalysisReport)
 if "Simulation.Name" in raw.columns:
