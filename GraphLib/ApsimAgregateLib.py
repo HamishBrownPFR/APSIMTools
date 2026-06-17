@@ -776,16 +776,19 @@ def plot_obs_pred_by_branch(
     # -------------------------------
     # CREATE FIGURE (NO constrained_layout)
     # -------------------------------
-    panel_size = 5
-    n = len(branches)
+    # max_panel_size = 25
 
-    fig_width = panel_size * n
-    fig_height = panel_size * 1.2
+    n = len(branches)
+    
+    fig_height = 10
+    
+    fig_width = fig_height / n
 
     fig, axes = plt.subplots(
         1, n,
-        figsize=(fig_width, fig_height),
-        sharex=True, sharey=True
+        figsize=(fig_height, fig_width),
+        sharex=True, sharey=True,
+        constrained_layout=True
     )
 
     if len(branches) == 1:
@@ -890,7 +893,7 @@ def plot_obs_pred_by_branch(
     # BUILD LEGENDS (NO POSITION YET)
     # -------------------------------
     legend_objects = []
-
+    y_offset = 0
     # Color legend
     if color_by and color_map:
         handles = [
@@ -903,10 +906,15 @@ def plot_obs_pred_by_branch(
             )
             for val in sorted(color_map)
         ]
+        
+        ncols = min(len(handles), 6)
+        nrows = math.ceil(len(handles) / ncols)
+        y_offset += nrows * 0.035 * n
 
         legend_objects.append(
             fig.legend(handles=handles, title=color_by, loc="upper center",
-                       ncol=min(len(handles), 6), frameon=False)
+                       bbox_to_anchor=(0.5, 1.0 + y_offset),
+                       ncol=ncols, frameon=False)
         )
 
     # Marker legend
@@ -926,39 +934,44 @@ def plot_obs_pred_by_branch(
             for val in sorted(marker_map)
         ]
 
+        ncols = min(len(handles), 6)
+        nrows = math.ceil(len(handles) / ncols)
+        y_offset += nrows * 0.035 * n + .035
+
         legend_objects.append(
             fig.legend(handles=handles, title=marker_by, loc="upper center",
-                       ncol=min(len(handles), 6), frameon=False)
+                       bbox_to_anchor=(0.5, 1 + y_offset),
+                       ncol=ncols, frameon=False)
         )
 
     # -------------------------------
     # ✅ DYNAMIC LAYOUT (KEY PART)
     # -------------------------------
-    if legend_objects:
+    # if legend_objects:
 
-        # compute sizes
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
-        inv = fig.transFigure.inverted()
+    #     # compute sizes
+    #     fig.canvas.draw()
+    #     renderer = fig.canvas.get_renderer()
+    #     inv = fig.transFigure.inverted()
 
-        heights = []
-        for leg in legend_objects:
-            bbox = leg.get_window_extent(renderer).transformed(inv)
-            heights.append(bbox.height)
+    #     heights = []
+    #     for leg in legend_objects:
+    #         bbox = leg.get_window_extent(renderer).transformed(inv)
+    #         heights.append(bbox.height)
 
-        pad = 0.01
-        total_height = sum(heights) + pad * len(heights)
+    #     pad = 0.01
+    #     total_height = sum(heights) + pad * len(heights)
 
-        # ✅ reserve space ABOVE panels
-        top_margin = max(0.2, 1 - total_height)
+    #     # ✅ reserve space ABOVE panels
+    #     top_margin = max(0.2, 1 - total_height)
 
-        plt.subplots_adjust(top=top_margin)
+    #     #plt.subplots_adjust(top=top_margin)
 
-        # ✅ stack legends in reserved space
-        y = 1.0
-        for leg, h in zip(legend_objects, heights):
-            leg.set_bbox_to_anchor((0.5, y), transform=fig.transFigure)
-            y -= (h + pad)
+    #     # ✅ stack legends in reserved space
+    #     y = 1.0
+    #     for leg, h in zip(legend_objects, heights):
+    #         leg.set_bbox_to_anchor((0.5, y), transform=fig.transFigure)
+    #         y -= (h + pad)
 
     return fig
 
@@ -1425,8 +1438,8 @@ BRANCHES = {
 # ======================
 
 # Options:
-#RUN_BRANCHES = []                    # run nothing (use existing DBs)
-RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
@@ -1617,7 +1630,7 @@ graph = plot_obs_pred_by_branch(
     config = CONFIG,
     variable = "Wheat.Grain.Wt",
     mode='harvest',
-    #filters = {"ProjectGroup":['WWHI']},
+    filters = {"branch":['master']},
     color_by = "Experiment",
     marker_by = "DevelopmentType",
     size_by=None
