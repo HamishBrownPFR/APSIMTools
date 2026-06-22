@@ -187,8 +187,8 @@ def load_all(config, apply_fn):
 #__________________________________________________________
 # load data from .db files for specific branch
 #----------------------------------------------------------
-
 def load_branch_data(branch_name, git_branch, config, apply_fn):
+
     if should_run(branch_name, config):
         reset_repo(config)
         checkout_branch(git_branch, config)
@@ -197,6 +197,7 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
     frames = []
 
     for sim in config["sim_files"]:
+
         db = branch_db_path(sim, branch_name)
 
         # --- Run APSIM ---
@@ -247,40 +248,34 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
 
             if pred is None and obs is None:
                 continue
-                
+
             # ---------------------------------------------
-            # ✅ CHECK SimulationID alignment (per file)
+            # ✅ CRITICAL FIX: enforce SimulationID alignment
             # ---------------------------------------------
             if pred is not None and obs is not None:
 
-                pred_ids = set(pred["SimulationID"].drop_duplicates())
-                obs_ids  = set(obs["SimulationID"].drop_duplicates())
+                pred_ids = set(pred["SimulationID"].dropna().unique())
+                obs_ids = set(obs["SimulationID"].dropna().unique())
 
-                # simulations in pred but not in obs
+                # --- Diagnostics (optional but useful) ---
                 missing_ids = pred_ids - obs_ids
-
                 if missing_ids:
-                    print(f"\n⚠️ Missing observed simulations in {sim.name}:")
-                    print(f"Count: {len(missing_ids)}")
+                    print(f"\n⚠️ Missing observed simulations in {sim.name}: {len(missing_ids)}")
 
-                    # attempt to print identifying info from pred
-                    cols_to_show = [
-                        c for c in [
-                            "SimulationID",
-                            "Simulation.Name",   # if present
-                            "Experiment",
-                        ] if c in pred.columns
-                    ]
+                extra_obs_ids = obs_ids - pred_ids
+                if extra_obs_ids:
+                    print(f"\n⚠️ Dropping unmatched observed simulations in {sim.name}: {len(extra_obs_ids)}")
 
-                    missing_rows = (
-                        pred[pred["SimulationID"].isin(missing_ids)]
-                        [cols_to_show]
-                        .drop_duplicates()
-                        .sort_values("SimulationID")
-                    )
+                # ✅ THE FIX — enforce alignment
+                before = len(obs)
+                obs = obs[obs["SimulationID"].isin(pred_ids)]
+                after = len(obs)
 
-                    print(missing_rows.head(20))  # limit output     
-                    
+                print(f"✅ Obs filtered by SimulationID: {after}/{before} rows kept")
+
+                if after == 0:
+                    obs = None  # clean downstream handling
+
             # ---------------------------------------------
             # ✅ Attach metadata (branch, file)
             # ---------------------------------------------
@@ -295,10 +290,14 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
             # ---------------------------------------------
             # ✅ Combine
             # ---------------------------------------------
-            df = pd.concat(
-                [x for x in [pred, obs] if x is not None],
-                ignore_index=True
-            )
+            if pred is not None and obs is not None:
+                df = pd.concat([pred, obs], ignore_index=True)
+            elif pred is not None:
+                df = pred.copy()
+            elif obs is not None:
+                df = obs.copy()
+            else:
+                continue
 
             frames.append(df)
 
@@ -306,6 +305,125 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
         raise RuntimeError(f"No data loaded for branch {branch_name}")
 
     return pd.concat(frames, ignore_index=True)
+    
+# def load_branch_data(branch_name, git_branch, config, apply_fn):
+#     if should_run(branch_name, config):
+#         reset_repo(config)
+#         checkout_branch(git_branch, config)
+#         build_apsim(config)
+
+#     frames = []
+
+#     for sim in config["sim_files"]:
+#         db = branch_db_path(sim, branch_name)
+
+#         # --- Run APSIM ---
+#         if should_run(branch_name, config):
+#             print("")
+#             print(f"▶ Running APSIM [{branch_name}]: {sim.name}")
+#             run_apsim(sim, config, apply_fn)
+
+#             original_db = sim.with_suffix(".db")
+#             branch_db = branch_db_path(sim, branch_name)
+
+#             shutil.copyfile(original_db, branch_db)
+
+#         else:
+#             print(f"⏭ Skipping run [{branch_name}]: {sim.name}")
+
+#         if not db.exists():
+#             print(f"❌ DB not created: {db}")
+#             continue
+
+#         # ======================================================
+#         # ✅ READ DATABASE
+#         # ======================================================
+#         with sqlite3.connect(db) as conn:
+
+#             tables = pd.read_sql(
+#                 "SELECT name FROM sqlite_master WHERE type='table';",
+#                 conn
+#             )["name"].tolist()
+
+#             print(f"{sim.name} tables: {tables}")
+
+#             # ---------------------------------------------
+#             # ✅ Observed
+#             # ---------------------------------------------
+#             obs = None
+#             if "Observed" in tables:
+#                 obs = pd.read_sql("SELECT * FROM [Observed]", conn)
+#                 obs["type"] = "obs"
+
+#             # ---------------------------------------------
+#             # ✅ Predictions
+#             # ---------------------------------------------
+#             pred = None
+#             if "AnalysisReport" in tables:
+#                 pred = pd.read_sql("SELECT * FROM [AnalysisReport]", conn)
+#                 pred["type"] = "pred"
+
+#             if pred is None and obs is None:
+#                 continue
+                
+#             # ---------------------------------------------
+#             # ✅ CHECK SimulationID alignment (per file)
+#             # ---------------------------------------------
+#             if pred is not None and obs is not None:
+
+#                 pred_ids = set(pred["SimulationID"].drop_duplicates())
+#                 obs_ids  = set(obs["SimulationID"].drop_duplicates())
+
+#                 # simulations in pred but not in obs
+#                 missing_ids = pred_ids - obs_ids
+
+#                 if missing_ids:
+#                     print(f"\n⚠️ Missing observed simulations in {sim.name}:")
+#                     print(f"Count: {len(missing_ids)}")
+
+#                     # attempt to print identifying info from pred
+#                     cols_to_show = [
+#                         c for c in [
+#                             "SimulationID",
+#                             "Simulation.Name",   # if present
+#                             "Experiment",
+#                         ] if c in pred.columns
+#                     ]
+
+#                     missing_rows = (
+#                         pred[pred["SimulationID"].isin(missing_ids)]
+#                         [cols_to_show]
+#                         .drop_duplicates()
+#                         .sort_values("SimulationID")
+#                     )
+
+#                     print(missing_rows.head(20)["Simulation.Name"].to_list())  # limit output     
+                    
+#             # ---------------------------------------------
+#             # ✅ Attach metadata (branch, file)
+#             # ---------------------------------------------
+#             if pred is not None:
+#                 pred["branch"] = branch_name
+#                 pred["file"] = sim.name
+
+#             if obs is not None:
+#                 obs["branch"] = branch_name
+#                 obs["file"] = sim.name
+
+#             # ---------------------------------------------
+#             # ✅ Combine
+#             # ---------------------------------------------
+#             df = pd.concat(
+#                 [x for x in [pred, obs] if x is not None],
+#                 ignore_index=True
+#             )
+
+#             frames.append(df)
+
+#     if not frames:
+#         raise RuntimeError(f"No data loaded for branch {branch_name}")
+
+#     return pd.concat(frames, ignore_index=True)
 
 
 

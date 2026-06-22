@@ -13,7 +13,7 @@
 #     name: python3
 # ---
 
-# # Read libraries
+# # Optimisation functions
 
 # +
 import datetime as dt
@@ -21,7 +21,6 @@ import pandas as pd
 import numpy as np 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import MathsUtilities as MUte
 import subprocess 
 import sqlite3
 import scipy.optimize 
@@ -38,72 +37,6 @@ import os
 from pathlib import Path
 
 # %matplotlib inline
-# -
-
-# # Prepare.apsimx files
-# Inject and remove cultivar replacement and playlist to select that cultivar
-
-# +
-def write_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name: str, parameters: dict, playListName: str):
-    """
-    Write an APSIM apply file to select a cultivar and override its parameters.
-
-    parameters: dict mapping APSIM variable paths to values, e.g.
-        {
-            "[Phenology].JuvenileBase.FixedValue": 30,
-            "[Phenology].VernSensitivity.FixedValue": 0.22,
-        }
-    """
-
-    lines = []
-
-    # Load base apsimx
-    lines.append(f"load {apsimx_path}")
-
-    # Select cultivar via playlist
-    lines.append(f"add new Playlist to [Simulations] name {playListName}")
-    lines.append(f"[{playListName}].Text=*{cultivar_name}*")
-
-    # Build command list
-    lines.append(f"add new Cultivar to [Replacements] name {cultivar_name}")
-    lines.append(f"[Replacements].{cultivar_name}.Command = ")
-    
-    for key, value in parameters.items():
-        lines.append(f' {key} = {value},')
-
-    # Remove trailing comma on last entry
-    lines[-1] = lines[-1].rstrip(",")
-    
-    # Save and run
-    lines.append(f"save {apsimx_path}")
-    lines.append("run")
-    
-    apply_path.write_text("\n".join(lines))
-    
-def remove_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name: str, playListName: str):
-    """
-    Write an APSIM apply file to remove the play list and cultivar added to replacements so clean for next run.
-
-    """
-    lines = []
-
-    # Load base apsimx
-    lines.append(f"load {apsimx_path}")
-
-    # Delete temporary components from fitting
-    lines.append(f"delete [Simulations].{playListName}")
-    lines.append(f"delete [Replacements].{cultivar_name}")
-
-    # Save and run
-    lines.append(f"save {apsimx_path}")
-    
-    apply_path.write_text("\n".join(lines))
-
-
-# -
-
-# # Calculate loss 
-# Take results from simulation run and calculate a loss value using NSE
 
 def calcLoss(fitting_variables, obs_pred):
     """
@@ -124,9 +57,9 @@ def calcLoss(fitting_variables, obs_pred):
         pred_col = f"Predicted.{var}"
 
         if obs_col not in obs_pred or pred_col not in obs_pred:
-            raise RuntimeError(
-                f"Missing required columns: {obs_col} or {pred_col}"
-            )
+            print(f"⚠️ Skipping variable '{var}' (missing columns)")
+            continue
+
 
         df = obs_pred[[obs_col, pred_col]].dropna()
 
@@ -202,10 +135,6 @@ def calcLoss(fitting_variables, obs_pred):
 
     return loss, len(sc_obs), sc_obs, sc_pred
 
-
-# # Results Data class
-# for results from each parameter combination
-
 class ResultsStore:
     def __init__(self):
         self.records = []
@@ -256,10 +185,6 @@ class ResultsStore:
                 for r in self.records
             ])
         return pd.DataFrame(self.records)
-
-
-# # runModelItter
-# runs the model with specified parameter set and return loss as a measure of accuracy with that parameter set.
 
 def runModelGetStats(runSpec, paramSet, fittingVariables):
 
@@ -321,9 +246,9 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
     if output.strip():
         print(output)
 
-    # -----------------------------
-    # CLEANUP (remove temp nodes)
-    # -----------------------------
+    #-----------------------------
+    #CLEANUP (remove temp nodes)
+    #-----------------------------
     remove_cultivar_apply_file(
         apply_path=Path(apply),
         apsimx_path=Path(apsimx),
@@ -373,7 +298,6 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
         con.close()
 
     return obs_pred, runtime
-
 
 def runModelItter(runSpecs, paramSet, fittingVariables, resultsStore=None, printResult=False):
     """
@@ -430,168 +354,6 @@ def runModelItter(runSpecs, paramSet, fittingVariables, resultsStore=None, print
 
     return loss
 
-# # Model fitting settings
-
-# +
-FITTING_VARIABLES = ['Lentil.Phenology.StartBuddingDAS',
-                     'Lentil.Phenology.StartFloweringDAS',
-                     'Lentil.Phenology.StartPoddingDAS']
-
-APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Debug\net8.0\Models.exe"
-# -
-
-# # Test with single file
-
-# +
-cultivar_params = {
-                    "[Phenology].JuvenileBase.FixedValue": 96,
-                    "[Phenology].VernSensitivity.FixedValue": 0.63,
-                    "[Phenology].InductivePpSensitivity.FixedValue": 0.44
-                  }
-
-runSpec = {
-             "cultivarName":"Bolt",
-             "simulationPath":r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\NaPA",
-             "apsimFileName":"2023_SA_Pinery_Lentil_Detailed",
-             "reportName":"HarvestObsPred"
-           }
-
-testStore = ResultsStore()
-runSpecs = []
-runSpecs.append(runSpec)
-runModelItter(runSpecs, cultivar_params, FITTING_VARIABLES, resultsStore=testStore, printResult=True)
-df = testStore.to_dataframe()
-# -
-
-# # Test with multi files
-
-# +
-CULTIVAR_FILE_DICT = {'Ace': ['Lentil.apsimx'],
-     'Aldinga': ['Lentil.apsimx'],
-     'Blitz': ['Lentil.apsimx'],
-     'Bolt': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
-      '2022_SA_Riverton_Lentil_Detailed.apsimx',
-      '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
-      '2023_SA_Pinery_Lentil_Detailed.apsimx',
-      '2023_Vic_Dooen_Lentil_Detailed.apsimx',
-      'Lentil.apsimx'],
-     'Boomer': ['Lentil.apsimx'],
-     'CIPAL0901': ['Lentil.apsimx'],
-     'CIPAL1504': ['Lentil.apsimx'],
-     'CIPAL1701': ['Lentil.apsimx'],
-     'Commando': ['Lentil.apsimx'],
-     'Flash': ['Lentil.apsimx'],
-     'Giant': ['Lentil.apsimx'],
-     'Greenfield': ['Lentil.apsimx'],
-     'HallmarkXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
-      '2022_SA_Riverton_Lentil_Detailed.apsimx',
-      '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
-      '2023_SA_Pinery_Lentil_Detailed.apsimx',
-      '2023_Vic_Dooen_Lentil_Detailed.apsimx',
-      'Lentil.apsimx'],
-     'Hurricane': ['Lentil.apsimx'],
-     'Indianhead': ['Lentil.apsimx'],
-     'Jumbo': ['Lentil.apsimx'],
-     'Jumbo2': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
-      '2022_SA_Riverton_Lentil_Detailed.apsimx',
-      '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
-      '2023_SA_Pinery_Lentil_Detailed.apsimx',
-      '2023_Vic_Dooen_Lentil_Detailed.apsimx',
-      'Lentil.apsimx'],
-     'KelpieXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
-  '2022_SA_Riverton_Lentil_Detailed.apsimx',
-  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
-  '2023_SA_Pinery_Lentil_Detailed.apsimx',
-  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
- 'Matilda': ['Lentil.apsimx'],
- 'Nipper': ['Lentil.apsimx'],
- 'Northfield': ['Lentil.apsimx'],
- 'Nugget': ['Lentil.apsimx'],
- 'Terrier': ['Lentil.apsimx']}
-
-def create_filesToRun_for_cultivar(cultivar_name):
-    """
-    Create filesToRun list for a given cultivar using mapping dictionary.
-    """
-
-    BASE_MAIN = r"C:\GitHubRepos\ApsimX\Prototypes\Lentil"
-    BASE_NAPA = r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\NaPA"
-
-    filesToRun = []
-
-    file_list = CULTIVAR_FILE_DICT.get(cultivar_name, [])
-
-    for fname in file_list:
-
-        if fname == "Lentil.apsimx":
-            filesToRun.append({
-                "dir": BASE_MAIN,
-                "name": "Lentil"
-            })
-        else:
-            filesToRun.append({
-                "dir": BASE_NAPA,
-                "name": fname.replace(".apsimx", "")
-            })
-
-    return filesToRun
-
-
-# -
-
-def create_runSpecs_for_cultivar(cultivarName, reportName):
-    runSpecs = []
-    
-    baseRunSpec = {
-                 "cultivarName":cultivarName,
-                 "simulationPath":None,
-                 "apsimFileName":None,
-                 "reportName":reportName
-               }
-
-    filesToRun = create_filesToRun_for_cultivar(cultivarName)
-
-    for fTR in filesToRun:
-        fileRunSpec = baseRunSpec.copy()
-        fileRunSpec["apsimFileName"] = fTR['name']
-        fileRunSpec["simulationPath"] = fTR['dir']
-        runSpecs.append(fileRunSpec)
-    
-    return runSpecs
-
-
-# +
-cultivar_params = {
-                    "[Phenology].JuvenileBase.FixedValue": 75,
-                    "[Phenology].VernSensitivity.FixedValue": 0.89,
-                    "[Phenology].InductivePpSensitivity.FixedValue": 0.36
-                  }
-
-runSpecs = create_runSpecs_for_cultivar("Jumbo2", "HarvestObsPred")
-
-storeMulti = ResultsStore()
-
-runModelItter(runSpecs, cultivar_params, FITTING_VARIABLES, resultsStore=storeMulti, printResult=True)
-df = testStore.to_dataframe()
-
-
-# -
-
-# # Objective function
-# for optimiser to interface with runModelItter
-
-def objective(x):
-    param_dict = dict(zip(paramNames, x))
-   
-    loss = runModelItter(RUNSPECS, param_dict, FITTING_VARIABLES, resultsStore=STORE, printResult=True)
-    
-    return loss
-
-
-# # Stagnation functions
-# Determine if optimiser is reaching best possible fits.
-
-# +
 # ------------------------------------------------------------
 # Stagnation detection helpers
 # ------------------------------------------------------------
@@ -625,147 +387,529 @@ def loss_stagnated(res, window=10, tol=0.02):
 
     return (recent[0] - recent[-1]) < tol
 
+def format_param(val, p):
+    step = p.get("step", None)
+
+    if step is None:
+        return f"{val:.3f}"
+
+    # determine decimals from step size
+    decimals = max(0, int(-np.log10(step))) if step < 1 else 0
+
+    if decimals == 0:
+        return f"{int(round(val))}"
+    else:
+        return f"{val:.{decimals}f}"
+
+def quantise(x, param_config):
+    q = []
+    for val, p in zip(x, param_config):
+        step = p.get("step", None)
+        if step is not None:
+            val = round(val / step) * step
+        q.append(val)
+    return q
+
+def fit_cultivar(
+    CultivarToFit,
+    ObsPredTableName,
+    param_config,
+    fitting_variables,
+    random_sample_size=29,
+    stage_size=10,
+    max_stages=5,
+    shrink_factor=0.05,
+    local_steps=10
+):
+
+    # -------------------------
+    # Build structures
+    # -------------------------
+    paramNames = [p["name"] for p in param_config]
+
+    space_dims = [
+        Real(p["bounds"][0], p["bounds"][1], name=p["short_name"])
+        for p in param_config
+    ]
+
+    expert_guesses = [[p["initial"] for p in param_config]]
+
+    space = Space(space_dims)
+
+    opt = Optimizer(
+        dimensions=space_dims,
+        base_estimator="GP",
+        acq_func="EI",
+        random_state=42
+    )
+
+    STORE = ResultsStore()
+
+    RUNSPECS = create_runSpecs_for_cultivar(
+        CultivarToFit,
+        ObsPredTableName
+    )
+
+    # -------------------------
+    # Objective with quantisation
+    # -------------------------
+    def objective(x):
+        xq = quantise(x, param_config)
+    
+        param_dict = dict(zip(paramNames, xq))
+    
+        loss = runModelItter(
+            RUNSPECS,
+            param_dict,
+            fitting_variables,
+            resultsStore=STORE,
+            printResult=False
+        )
+    
+        itter = STORE.iteration
+        param_str = ", ".join(
+            f"{p['short_name']}={format_param(v, p)}"
+            for p, v in zip(param_config, xq)
+        )
+        
+        runtime = STORE.records[-1]["runtime"]
+        nobs = STORE.records[-1]["n_obs"]
+        
+        print(
+            f"[{itter:03d}] {param_str} | "
+            f"Loss = {loss:.4f} | "
+            f"n = {nobs} | "
+            f"{runtime:.1f}s"
+        )
+
+        return loss
+
+    # -------------------------
+    # Initial design
+    # -------------------------
+    print(f"\n=== Initial design: {CultivarToFit} ===")
+
+    for x in expert_guesses:
+        opt.tell(x, objective(x))
+
+    for x in space.rvs(random_sample_size, random_state=42):
+        opt.tell(x, objective(x))
+
+    # -------------------------
+    # GP optimisation
+    # -------------------------
+    param_ranges = np.array([d.high - d.low for d in space_dims])
+    eps = 0.01 * np.linalg.norm(param_ranges)
+
+    for stage in range(max_stages):
+        print(f"\n=== Stage {stage+1} ===")
+
+        for _ in range(stage_size):
+            x = opt.ask()
+            y = objective(x)
+            opt.tell(x, y)
+
+        x_hist = opt.Xi
+        y_hist = np.array(opt.yi)
+
+        if stagnation_detected(
+            type("Res", (), {"x_iters": x_hist}),
+            window=5,
+            eps=eps
+        ):
+            print("Stopping: parameter stagnation")
+            break
+
+        if loss_stagnated(
+            type("Res", (), {"func_vals": y_hist}),
+            window=10,
+            tol=1e-3
+        ):
+            print("Stopping: loss stagnation")
+            break
+
+    # -------------------------
+    # Best global solution
+    # -------------------------
+    best_idx = int(np.argmin(opt.yi))
+    best_x = opt.Xi[best_idx]
+    best_y = opt.yi[best_idx]
+
+    print("\n=== Global optimum ===")
+    print(f"Loss: {best_y:.4f}")
+
+    # -------------------------
+    # LOCAL REFINEMENT
+    # -------------------------
+    print("\n=== Local refinement ===")
+
+    local_config = []
+
+    for val, p in zip(best_x, param_config):
+
+        low, high = p["bounds"]
+        base_range = (high + low)/2
+
+        delta = max(
+            abs(val) * shrink_factor,
+            0.05 * base_range
+        )
+
+        new_low = max(low, val - delta)
+        new_high = min(high, val + delta)
+
+        local_p = p.copy()
+        local_p["bounds"] = (new_low, new_high)
+        local_p["initial"] = val
+
+        local_config.append(local_p)
+
+    # build local GP
+    local_space = [
+        Real(p["bounds"][0], p["bounds"][1], name=p["short_name"])
+        for p in local_config
+    ]
+
+    local_opt = Optimizer(
+        dimensions=local_space,
+        base_estimator="GP",
+        acq_func="EI",
+        random_state=42
+    )
+
+    # seed
+    local_opt.tell(best_x, objective(best_x))
+
+    # run local GP
+    for i in range(local_steps):
+        x = local_opt.ask()
+        y = objective(x)
+        local_opt.tell(x, y)
+
+    best_local_idx = int(np.argmin(local_opt.yi))
+    best_x = local_opt.Xi[best_local_idx]
+    best_y = local_opt.yi[best_local_idx]
+
+    print("\n=== Final result ===")
+    print(f"Loss: {best_y:.4f}")
+
+    for p, val in zip(param_config, quantise(best_x, param_config)):
+        print(f"{p['short_name']}: {val}")
+
+    return quantise(best_x, param_config), best_y, STORE, opt
+
+
 
 # -
 
-# # Run optimisation
+# # Test with single param set on single file
+
+# ## functions to prepare .apsimx files
+# Inject and remove cultivar replacement and playlist to select that cultivar
 
 # +
-# Fitting options
+def write_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name: str, parameters: dict, playListName: str):
+    """
+    Write an APSIM apply file to select a cultivar and override its parameters.
 
-CultivarToFit = "Jumbo2"
-ObsPredTableName = "HarvestObsPred"
-random_sample_size = 29
-stage_size = 10
-max_stages = 5
+    parameters: dict mapping APSIM variable paths to values, e.g.
+        {
+            "[Phenology].JuvenileBase.FixedValue": 30,
+            "[Phenology].VernSensitivity.FixedValue": 0.22,
+        }
+    """
+
+    lines = []
+
+    # Load base apsimx
+    lines.append(f"load {apsimx_path}")
+
+    # Select cultivar via playlist
+    lines.append(f"add new Playlist to [Simulations] name {playListName}")
+    lines.append(f"[{playListName}].Text=*{cultivar_name}*")
+
+    # Build command list
+    lines.append(f"add new Cultivar to [Replacements] name {cultivar_name}")
+    lines.append(f"[Replacements].{cultivar_name}.Command = ")
+    
+    for key, value in parameters.items():
+        lines.append(f' {key} = {value},')
+
+    # Remove trailing comma on last entry
+    lines[-1] = lines[-1].rstrip(",")
+    
+    # Save and run
+    lines.append(f"save {apsimx_path}")
+    lines.append("run")
+    
+    apply_path.write_text("\n".join(lines))
+    
+def remove_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name: str, playListName: str):
+    """
+    Write an APSIM apply file to remove the play list and cultivar added to replacements so clean for next run.
+
+    """
+    lines = []
+
+    # Load base apsimx
+    lines.append(f"load {apsimx_path}")
+
+    # Delete temporary components from fitting
+    lines.append(f"delete [Simulations].{playListName}")
+    lines.append(f"delete [Replacements].{cultivar_name}")
+
+    # Save and run
+    lines.append(f"save {apsimx_path}")
+    
+    apply_path.write_text("\n".join(lines))
+
+
+# -
+
+# ## run single file test
+
+# +
+FITTING_VARIABLES = ['Lentil.Phenology.StartBuddingDAS',
+                     'Lentil.Phenology.StartFloweringDAS',
+                     'Lentil.Phenology.StartPoddingDAS'#'Lentil.Phenology.MaturityDAS'
+                    ]
+
+APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Debug\net8.0\Models.exe"
+
+cultivar_params = {
+                    "[Phenology].JuvenileBase.FixedValue": 96,
+                    "[Phenology].VernSensitivity.FixedValue": 0.63,
+                    "[Phenology].InductivePpSensitivity.FixedValue": 0.44
+                  }
+
+runSpec = {
+             #"cultivarName":"Bolt",
+             "cultivarName":"Terrier",
+             #"simulationPath":r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\NaPA",
+             "simulationPath":r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\FAHMA",
+             "apsimFileName":"FAHMA_Lentil",
+             "reportName":"HarvestObsPred"
+           }
+
+testStore = ResultsStore()
+runSpecs = []
+runSpecs.append(runSpec)
+runModelItter(runSpecs, cultivar_params, FITTING_VARIABLES, resultsStore=testStore, printResult=True)
+df = testStore.to_dataframe()
+# -
+
+# # Test with single cultivar over multiple files
+
+# ## Index of which cultivars are in which files
+
+CULTIVAR_FILE_DICT = {
+ 'Ace': ['Lentil.apsimx'],
+ 'Aldinga': ['Lentil.apsimx'],
+ 'Blitz': ['Lentil.apsimx'],
+ 'Bolt': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  'Lentil.apsimx'],
+ 'Boomer': ['Lentil.apsimx'],
+ 'CIPAL0901': ['Lentil.apsimx'],
+ 'CIPAL1504': ['Lentil.apsimx'],
+ 'CIPAL1701': ['Lentil.apsimx'],
+ 'Commando': ['Lentil.apsimx'],
+ 'Ethiopian': ['Lentil.apsimx'],
+ 'Flash': ['Lentil.apsimx'],
+ 'Giant': ['Lentil.apsimx'],
+ 'Greenfield': ['Lentil.apsimx'],
+ 'HallmarkXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  'FAHMA_Lentil.apsimx',
+  'Lentil.apsimx'],
+ 'Hurricane': ['Lentil.apsimx'],
+ 'Indianhead': ['Lentil.apsimx'],
+ 'Jumbo': ['Lentil.apsimx'],
+ 'Jumbo2': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  'FAHMA_Lentil.apsimx',
+  'Lentil.apsimx'],
+ 'KelpieXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
+ 'Laird': ['Lentil.apsimx'],
+ 'Matilda': ['Lentil.apsimx'],
+ 'Nipper': ['Lentil.apsimx'],
+ 'Northfield': ['Lentil.apsimx'],
+ 'Nugget': ['Lentil.apsimx'],
+ 'Precoz': ['Lentil.apsimx'],
+ 'Syrian': ['Lentil.apsimx'],
+ 'Terrier': ['FAHMA_Lentil.apsimx']}
+
+
+# ## Functions to create data structures for running cultivar
+
+# +
+def create_filesToRun_for_cultivar(cultivar_name):
+    """
+    Create filesToRun list for a given cultivar using mapping dictionary.
+    """
+
+    BASE_MAIN = r"C:\GitHubRepos\ApsimX\Prototypes\Lentil"
+    BASE_NAPA = r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\NaPA"
+    BASE_FAHMA = r"C:\GitHubRepos\ApsimX\Prototypes\Lentil\FAHMA"
+
+    filesToRun = []
+
+    file_list = CULTIVAR_FILE_DICT.get(cultivar_name, [])
+
+    for fname in file_list:
+
+        if fname == "Lentil.apsimx":
+            filesToRun.append({
+                "dir": BASE_MAIN,
+                "name": "Lentil"
+            })
+        elif fname == "FAHMA_Lentil.apsimx":
+            filesToRun.append({
+                "dir": BASE_FAHMA,
+                "name": "FAHMA_Lentil"
+            })
+        else:
+            filesToRun.append({
+                "dir": BASE_NAPA,
+                "name": fname.replace(".apsimx", "")
+            })
+
+    return filesToRun
+
+def create_runSpecs_for_cultivar(cultivarName, reportName):
+    runSpecs = []
+    
+    baseRunSpec = {
+                 "cultivarName":cultivarName,
+                 "simulationPath":None,
+                 "apsimFileName":None,
+                 "reportName":reportName
+               }
+
+    filesToRun = create_filesToRun_for_cultivar(cultivarName)
+
+    for fTR in filesToRun:
+        fileRunSpec = baseRunSpec.copy()
+        fileRunSpec["apsimFileName"] = fTR['name']
+        fileRunSpec["simulationPath"] = fTR['dir']
+        runSpecs.append(fileRunSpec)
+    
+    return runSpecs
+
+
+# -
+
+# ## Run multiple files for selected cultivar with specified parameter set
+
+# +
+cultivar_params = {
+"[Phenology].JuvenileBase.FixedValue": 108.8739,
+"[Phenology].VernSensitivity.FixedValue": 0.8966,
+"[Phenology].InductiveBase.FixedValue": 0.0000,
+"[Phenology].InductivePpSensitivity.FixedValue": 0.4307,
+"[Phenology].TtFlowerDevelopment.FixedValue": 130,
+"[Phenology].TtPodDevelopment.FixedValue": 265
+                  }
+
+runSpecs = create_runSpecs_for_cultivar("HallmarkXT", "HarvestObsPred")
+
+storeMulti = ResultsStore()
+
+runModelItter(runSpecs, cultivar_params, FITTING_VARIABLES, resultsStore=storeMulti, printResult=True)
+df = testStore.to_dataframe()
+# -
+
+# # Run optimisation to find best fit parameters for specific cultivar
+
+# ## Run optimisation
+
+# +
+Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
+                     'Lentil.Phenology.StartFloweringDAS',
+                     'Lentil.Phenology.StartPoddingDAS']
 
 # ------------------------------------------------------------
 # Parameter definitions
 # ------------------------------------------------------------
 
-paramNames = [
-    "[Phenology].JuvenileBase.FixedValue",
-    "[Phenology].VernSensitivity.FixedValue",
-    "[Phenology].InductivePpSensitivity.FixedValue"
+param_config = [
+    {
+        "name": "[Phenology].JuvenileBase.FixedValue",
+        "short_name": "JuvBas",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 108.8739
+    },
+    {
+        "name": "[Phenology].VernSensitivity.FixedValue",
+        "short_name": "VrnSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.8966
+    },
+    {
+        "name": "[Phenology].InductiveBase.FixedValue",
+        "short_name": "IndBas",
+        "bounds": (0.0, 400.0),
+        "step": 5,
+        "initial": 0
+    },
+    {
+        "name": "[Phenology].InductivePpSensitivity.FixedValue",
+        "short_name": "PpSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.4307
+    },
+    {
+        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
+        "short_name": "TtFlo",
+        "bounds": (100.0, 300.0),
+        "step": 5,
+        "initial": 130
+    },
+    {
+        "name": "[Phenology].TtPodDevelopment.FixedValue",
+        "short_name": "TtPod",
+        "bounds": (100, 300),
+        "step": 5,
+        "initial": 165
+    }
 ]
 
-space_dims = [
-    Real(0, 400, name=paramNames[0]),   # JuvenileBase
-    Real(0.0, 2.0, name=paramNames[1]), # VernSensitivity
-    Real(0.0, 2.0, name=paramNames[2]), # InductivePpSensitivity
-]
-
-space = Space(space_dims)
-
-# ------------------------------------------------------------
-# Create GP optimiser (ask / tell API)
-# ------------------------------------------------------------
-
-opt = Optimizer(
-    dimensions=space_dims,
-    base_estimator="GP",
-    acq_func="EI",
-    random_state=42
-)
-
-# Initialise results store
-STORE = ResultsStore()
-
-# Initialise runSpecs
-RUNSPECS = create_runSpecs_for_cultivar(CultivarToFit, ObsPredTableName)
-
-# ------------------------------------------------------------
-# Initial design: expert guess + random sampling
-# ------------------------------------------------------------
-
-print("=== Initial design: expert + random ===")
-
-# Expert guess (must be list of lists)
-expert_guesses = [[96, 0.63, 0.44]]
-
-for x in expert_guesses:
-    y = objective(x)
-    opt.tell(x, y)
-
-# Random space-filling design
-n_initial_random = random_sample_size
-random_points = space.rvs(n_initial_random, random_state=42)
-
-for x in random_points:
-    y = objective(x)
-    opt.tell(x, y)
-
-# ------------------------------------------------------------
-# Scale-aware stagnation threshold
-# ------------------------------------------------------------
-
-param_ranges = np.array([dim.high - dim.low for dim in space_dims])
-eps = 0.01 * np.linalg.norm(param_ranges)
-
-# ------------------------------------------------------------
-# Staged GP-guided optimisation loop
-# ------------------------------------------------------------
-for stage in range(max_stages):
-    print(f"\n=== GP optimisation stage {stage + 1} ===")
-
-    # Exactly stage_size new APSIM runs
-    for _ in range(stage_size):
-        x = opt.ask()          # propose one point
-        y = objective(x)       # run APSIM exactly once
-        opt.tell(x, y)         # update GP
-
-    # ---- stopping criteria ----
-    x_hist = opt.Xi
-    y_hist = np.array(opt.yi)
-
-    if stagnation_detected(
-        type("Res", (), {"x_iters": x_hist}),
-        window=5,
-        eps=eps
-    ):
-        print("Stopping: parameter-space stagnation detected.")
-        break
-
-    if loss_stagnated(
-        type("Res", (), {"func_vals": y_hist}),
-        window=10,
-        tol=1e-3
-    ):
-        print("Stopping: loss improvement stalled.")
-        break
-
-# ------------------------------------------------------------
-# Final result summary
-# ------------------------------------------------------------
-
-X = opt.Xi
-Y = opt.yi
-
-res = create_result(
-    Xi=opt.Xi,
-    yi=np.array(opt.yi),
-    space=opt.space,
-    specs=None,
-    models=opt.models
-)
-
-best_idx = int(np.argmin(Y))
-best_x = X[best_idx]
-best_y = Y[best_idx]
-
-print("\n=== Optimisation complete ===")
-print(f"Best loss: {best_y:.4f}")
-for name, val in zip(paramNames, best_x):
-    print(f"{name}: {val:.4f}")
+best_x, best_y, STORE, opt = fit_cultivar(
+                                            CultivarToFit = "HallmarkXT",
+                                            ObsPredTableName = "HarvestObsPred",
+                                            fitting_variables=Fitting_Variables,
+                                            param_config=param_config,
+                                            random_sample_size=29,
+                                            stage_size=10,
+                                            max_stages=5,
+                                            shrink_factor=0.05,
+                                            local_steps=10
+                                        )
 # -
 
-# # Evolution of loss results
+# ## Evolution of loss results
 
 df = STORE.to_dataframe()
 
 df.loss.plot()
 
-# # Obs vs pred of best fit
+# ## Obs vs pred of best fit
 
 # +
 
@@ -789,7 +933,10 @@ plt.ylabel("Predicted")
 plt.title(f"Best iteration {best_iter}, NSE={-best_row['loss']:.3f}")
 plt.show()
 
+# -
 
+
+# ## Parameter space analysis
 
 # +
 from skopt.plots import plot_objective
@@ -804,3 +951,192 @@ res = create_result(
 )
 
 plot_objective(res)
+# -
+# # Fit parameters for all cultivars
+
+
+CULTIVAR_FILE_DICT.keys()
+
+# +
+Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
+                     'Lentil.Phenology.StartFloweringDAS',
+                     'Lentil.Phenology.StartPoddingDAS']
+
+# ------------------------------------------------------------
+# Parameter definitions
+# ------------------------------------------------------------
+
+param_config = [
+    {
+        "name": "[Phenology].JuvenileBase.FixedValue",
+        "short_name": "JuvBas",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 108.8739
+    },
+    {
+        "name": "[Phenology].VernSensitivity.FixedValue",
+        "short_name": "VrnSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.8966
+    },
+    {
+        "name": "[Phenology].InductiveBase.FixedValue",
+        "short_name": "IndBas",
+        "bounds": (0.0, 400.0),
+        "step": 5,
+        "initial": 0
+    },
+    {
+        "name": "[Phenology].InductivePpSensitivity.FixedValue",
+        "short_name": "PpSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.4307
+    },
+    {
+        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
+        "short_name": "TtFlo",
+        "bounds": (100.0, 300.0),
+        "step": 5,
+        "initial": 130
+    },
+    {
+        "name": "[Phenology].TtPodDevelopment.FixedValue",
+        "short_name": "TtPod",
+        "bounds": (100, 300),
+        "step": 5,
+        "initial": 165
+    }
+]
+
+fits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in ['Bolt']:
+    fits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+                                                                        CultivarToFit = c,
+                                                                        ObsPredTableName = "HarvestObsPred",
+                                                                        fitting_variables=Fitting_Variables,
+                                                                        param_config=param_config,
+                                                                        random_sample_size=29,
+                                                                        stage_size=10,
+                                                                        max_stages=5,
+                                                                        shrink_factor=0.05,
+                                                                        local_steps=10
+                                                                    )
+# -
+
+# ## graphs
+
+fits.loc["Bolt","opt"]
+
+STORE = fits.loc["Bolt","STORE"]
+df = STORE.to_dataframe()
+
+df.loss.plot()
+
+# +
+# Find the best iteration (minimum loss)
+best_idx = df["loss"].idxmin()
+best_row = df.loc[best_idx]
+best_iter = best_row["iteration"]
+
+print(f"Best iteration: {best_iter}, NSE = {-best_row['loss']:.3f}")
+
+# Plot Obs vs Pred for the best iteration
+plt.figure()
+plt.scatter(best_row["obs"], best_row["pred"], alpha=0.6)
+plt.plot(
+    [best_row["obs"].min(), best_row["obs"].max()],
+    [best_row["obs"].min(), best_row["obs"].max()],
+    "k--"
+)
+plt.xlabel("Observed")
+plt.ylabel("Predicted")
+plt.title(f"Best iteration {best_iter}, NSE={-best_row['loss']:.3f}")
+plt.show()
+
+# +
+from skopt.plots import plot_objective
+from skopt.utils import create_result
+opt = fits.loc["Bolt","opt"]
+res = create_result(
+    Xi=opt.Xi,
+    yi=np.array(opt.yi),
+    space=opt.space,
+    specs=None,
+    models=opt.models
+)
+
+plot_objective(res)
+# -
+
+'Terrier'
+
+# +
+Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
+                     'Lentil.Phenology.StartFloweringDAS',
+                     'Lentil.Phenology.StartPoddingDAS']
+
+# ------------------------------------------------------------
+# Parameter definitions
+# ------------------------------------------------------------
+
+param_config = [
+    {
+        "name": "[Phenology].JuvenileBase.FixedValue",
+        "short_name": "JuvBas",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 108.8739
+    },
+    {
+        "name": "[Phenology].VernSensitivity.FixedValue",
+        "short_name": "VrnSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.8966
+    },
+    {
+        "name": "[Phenology].InductiveBase.FixedValue",
+        "short_name": "IndBas",
+        "bounds": (0.0, 400.0),
+        "step": 5,
+        "initial": 0
+    },
+    {
+        "name": "[Phenology].InductivePpSensitivity.FixedValue",
+        "short_name": "PpSen",
+        "bounds": (0.0, 2.0),
+        "step": 0.01,
+        "initial": 0.4307
+    },
+    {
+        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
+        "short_name": "TtFlo",
+        "bounds": (100.0, 300.0),
+        "step": 5,
+        "initial": 130
+    },
+    {
+        "name": "[Phenology].TtPodDevelopment.FixedValue",
+        "short_name": "TtPod",
+        "bounds": (100, 300),
+        "step": 5,
+        "initial": 165
+    }
+]
+
+fits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in ['Terrier']:
+    fits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+                                                                        CultivarToFit = c,
+                                                                        ObsPredTableName = "HarvestObsPred",
+                                                                        fitting_variables=Fitting_Variables,
+                                                                        param_config=param_config,
+                                                                        random_sample_size=29,
+                                                                        stage_size=10,
+                                                                        max_stages=5,
+                                                                        shrink_factor=0.05,
+                                                                        local_steps=10
+                                                                    )
