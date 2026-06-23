@@ -59,14 +59,12 @@ def calcLoss(fitting_variables, obs_pred):
         if obs_col not in obs_pred or pred_col not in obs_pred:
             print(f"⚠️ Skipping variable '{var}' (missing columns)")
             continue
-
-
+        
         df = obs_pred[[obs_col, pred_col]].dropna()
 
         if df.empty:
-            raise RuntimeError(
-                f"No valid data for variable '{var}' after dropping NaNs"
-            )
+            print(f"No valid data for variable '{var}' after dropping NaNs")
+            continue
 
         # Ensure numeric
         df[obs_col] = pd.to_numeric(df[obs_col], errors="coerce")
@@ -599,8 +597,37 @@ def fit_cultivar(
     return quantise(best_x, param_config), best_y, STORE, opt
 
 
-
 # -
+
+Colors = {1:'#000000',
+2:'#E69F00',
+3:'#56B4E9',
+4:'#009E73',
+5:'#F0E442',
+6:'#0072B2',
+7:'#D55E00',
+8:'#CC79A7',
+9:'#1F77B4',
+10:'#AEC7E8',
+11:'#FF7F0E',
+12:'#FFBB78',
+13:'#2CA02C',
+14:'#98DF8A',
+15:'#D62728',
+16:'#FF9896',
+17:'#9467BD',
+18:'#C5B0D5',
+19:'#8C564B',
+20:'#C49C94',
+21:'#E377C2',
+22:'#F7B6D2',
+23:'#7F7F7F',
+24:'#C7C7C7',
+25:'#BCBD22',
+26:'#DBDB8D',
+27:'#17BECF',
+28:'#9EDAE5'}
+
 
 # # Test with single param set on single file
 
@@ -860,13 +887,13 @@ param_config = [
         "step": 0.01,
         "initial": 0.8966
     },
-    {
-        "name": "[Phenology].InductiveBase.FixedValue",
-        "short_name": "IndBas",
-        "bounds": (0.0, 400.0),
-        "step": 5,
-        "initial": 0
-    },
+    # {
+    #     "name": "[Phenology].InductiveBase.FixedValue",
+    #     "short_name": "IndBas",
+    #     "bounds": (0.0, 400.0),
+    #     "step": 5,
+    #     "initial": 0
+    # },
     {
         "name": "[Phenology].InductivePpSensitivity.FixedValue",
         "short_name": "PpSen",
@@ -877,21 +904,21 @@ param_config = [
     {
         "name": "[Phenology].TtFlowerDevelopment.FixedValue",
         "short_name": "TtFlo",
-        "bounds": (100.0, 300.0),
+        "bounds": (30.0, 300.0),
         "step": 5,
         "initial": 130
     },
     {
         "name": "[Phenology].TtPodDevelopment.FixedValue",
         "short_name": "TtPod",
-        "bounds": (100, 300),
+        "bounds": (30, 250),
         "step": 5,
         "initial": 165
     }
 ]
 
 best_x, best_y, STORE, opt = fit_cultivar(
-                                            CultivarToFit = "HallmarkXT",
+                                            CultivarToFit = "Flash",
                                             ObsPredTableName = "HarvestObsPred",
                                             fitting_variables=Fitting_Variables,
                                             param_config=param_config,
@@ -955,6 +982,8 @@ plot_objective(res)
 # # Fit parameters for all cultivars
 
 
+# ## Run optimiser for all cultivars
+
 CULTIVAR_FILE_DICT.keys()
 
 # +
@@ -981,13 +1010,13 @@ param_config = [
         "step": 0.01,
         "initial": 0.8966
     },
-    {
-        "name": "[Phenology].InductiveBase.FixedValue",
-        "short_name": "IndBas",
-        "bounds": (0.0, 400.0),
-        "step": 5,
-        "initial": 0
-    },
+    # {
+    #     "name": "[Phenology].InductiveBase.FixedValue",
+    #     "short_name": "IndBas",
+    #     "bounds": (0.0, 400.0),
+    #     "step": 5,
+    #     "initial": 0
+    # },
     {
         "name": "[Phenology].InductivePpSensitivity.FixedValue",
         "short_name": "PpSen",
@@ -998,21 +1027,21 @@ param_config = [
     {
         "name": "[Phenology].TtFlowerDevelopment.FixedValue",
         "short_name": "TtFlo",
-        "bounds": (100.0, 300.0),
+        "bounds": (30.0, 300.0),
         "step": 5,
         "initial": 130
     },
     {
         "name": "[Phenology].TtPodDevelopment.FixedValue",
         "short_name": "TtPod",
-        "bounds": (100, 300),
+        "bounds": (30, 250),
         "step": 5,
         "initial": 165
     }
 ]
 
 fits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
-for c in ['Bolt']:
+for c in CULTIVAR_FILE_DICT.keys():
     fits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
                                                                         CultivarToFit = c,
                                                                         ObsPredTableName = "HarvestObsPred",
@@ -1026,40 +1055,210 @@ for c in ['Bolt']:
                                                                     )
 # -
 
+fits.to_pickle("secondSetOfFits")
+
 # ## graphs
 
-fits.loc["Bolt","opt"]
+fits1 = pd.read_pickle("firtsSetOfFits")
+fits2 = pd.read_pickle("secondSetOfFits")
 
-STORE = fits.loc["Bolt","STORE"]
-df = STORE.to_dataframe()
 
-df.loss.plot()
+# ### Evolution of fitting
 
 # +
-# Find the best iteration (minimum loss)
-best_idx = df["loss"].idxmin()
-best_row = df.loc[best_idx]
-best_iter = best_row["iteration"]
+def graphFitEvolve(fits):
+    graph = plt.figure(figsize=(9,15))
+    pos = 1
+    for c in CULTIVAR_FILE_DICT.keys():
+        ax = graph.add_subplot(7,4,pos)
+        fpos = 0
+        for fit in fits:
+            fcol = Colors[fpos+1]
+            STORE = fit.loc[c,"STORE"]
+            nse = -fit.loc[c,"best_y"]
+            df = STORE.to_dataframe()
+            df.loss.plot(color = fcol)
+            plt.text(0.98,0.88-0.1*fpos,f"{nse:.2g}",horizontalalignment='right',
+             verticalalignment='top', transform=ax.transAxes, color = fcol)
+            fpos+=1
+        plt.text(0.98,0.98,c,horizontalalignment='right',
+                 verticalalignment='top', transform=ax.transAxes)
 
-print(f"Best iteration: {best_iter}, NSE = {-best_row['loss']:.3f}")
+        plt.ylim(-1.05,1.05)
+        plt.xlim(0,90)
+        pos+=1
 
-# Plot Obs vs Pred for the best iteration
-plt.figure()
-plt.scatter(best_row["obs"], best_row["pred"], alpha=0.6)
-plt.plot(
-    [best_row["obs"].min(), best_row["obs"].max()],
-    [best_row["obs"].min(), best_row["obs"].max()],
-    "k--"
-)
-plt.xlabel("Observed")
-plt.ylabel("Predicted")
-plt.title(f"Best iteration {best_iter}, NSE={-best_row['loss']:.3f}")
-plt.show()
+graphFitEvolve([fits1,fits2])
+
+
+# -
+
+# ### obs vs pred scaled
+
+# +
+def graphObsPred(fits):
+    graph = plt.figure(figsize=(9,15))
+    pos = 1
+    for c in CULTIVAR_FILE_DICT.keys():
+        ax = graph.add_subplot(7,4,pos)
+        fpos = 0
+        for fit in fits:
+            fcol = Colors[fpos +1]
+            STORE = fit.loc[c,"STORE"]
+            nse = -fit.loc[c,"best_y"]
+            df = STORE.to_dataframe()
+        
+            # Find the best iteration (minimum loss)
+            best_idx = df["loss"].idxmin()
+            best_row = df.loc[best_idx]
+            best_iter = best_row["iteration"]
+                
+            # Plot Obs vs Pred for the best iteration
+            plt.plot(best_row["obs"], best_row["pred"], "o", alpha=0.6, color = fcol)
+            plt.text(0.02,0.88-0.1*fpos,f"{nse:.2g}",horizontalalignment='left',
+                    verticalalignment='top', transform=ax.transAxes, color = fcol)
+            fpos+=1
+        plt.plot([0,1],[0,1], "k--")
+        plt.xlabel("Observed")
+        plt.ylabel("Predicted")
+        #plt.title(f"Best iteration {best_iter}, NSE={-best_row['loss']:.3f}")
+        #plt.show
+        plt.text(0.02,0.98,c,horizontalalignment='left',
+                 verticalalignment='top', transform=ax.transAxes)
+        plt.ylim(-0.05,1.05)
+        plt.xlim(-0.05,1.05)
+        pos+=1
+
+graphObsPred([fits1,fits2])
+# -
+
+# ### parameter ranges
+
+# +
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import Normalize
+
+
+def plot_parameter_bars(
+    fits_df,
+    param_config,
+    sort=True,
+    colour_by_loss=True,
+    figsize=(10, 4)
+):
+    """
+    Plot bar charts of fitted parameter values across cultivars with bounds.
+
+    Parameters
+    ----------
+    fits_df : DataFrame
+        Must contain 'best_x' and 'best_y', index = cultivars
+    param_config : list of dict
+        Defines parameter names, bounds, etc.
+    sort : bool
+        Sort cultivars by parameter value
+    colour_by_loss : bool
+        Colour bars by fit quality (best_y)
+    """
+
+    df = fits_df.copy()
+
+    # -------------------------
+    # Expand best_x
+    # -------------------------
+    param_cols = pd.DataFrame(df["best_x"].tolist(), index=df.index)
+
+    param_names = [p["short_name"] for p in param_config]
+    param_cols.columns = param_names
+
+    df_params = pd.concat([df, param_cols], axis=1)
+
+    # Ensure best_y is numeric
+    df_params["best_y"] = pd.to_numeric(df_params["best_y"], errors="coerce")
+
+    # -------------------------
+    # Plot each parameter
+    # -------------------------
+    for i, p in enumerate(param_config):
+
+        pname = p["short_name"]
+        low, high = p["bounds"]
+
+        plt.figure(figsize=figsize)
+
+        plot_df = df_params.copy()
+
+        if sort:
+            plot_df = plot_df.sort_values(pname)
+
+        values = plot_df[pname]
+
+        ax = plt.gca()
+
+        # -------------------------
+        # Colour by loss
+        # -------------------------
+        if colour_by_loss:
+
+            loss = plot_df["best_y"].fillna(plot_df["best_y"].max()).values.astype(float)
+            
+            vmin = np.min(loss)
+            vmax = np.max(loss)
+            
+            if np.isclose(vmin, vmax):
+                colors = ["steelblue"] * len(loss)
+            else:
+                norm = Normalize(vmin=vmin, vmax=vmax)
+                normed = norm(loss)
+            
+                # ✅ invert so better fits (lower loss) = darker
+                normed = 1 - normed
+            
+                colors = plt.cm.viridis(normed)
+            
+                sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+                sm.set_array([])
+            
+                ax = plt.gca()
+                cbar = plt.colorbar(sm, ax=ax)
+                cbar.set_label("Fit quality (best_y)")
+            
+            plt.bar(plot_df.index, values, color=colors)
+        else:
+            plt.bar(plot_df.index, values)
+
+        # -------------------------
+        # Bounds lines
+        # -------------------------
+        ax.axhline(low, linestyle="--", color="red", linewidth=1)
+        ax.axhline(high, linestyle="--", color="red", linewidth=1)
+
+        # -------------------------
+        # Titles and formatting
+        # -------------------------
+        ax.set_title(f"{pname} across cultivars")
+        ax.set_ylabel("Value")
+
+        plt.xticks(rotation=45, ha="right")
+
+        # Only show legend once (optional)
+        ax.legend(loc="upper right")
+
+        plt.tight_layout()
+        plt.show()
+
+
+plot_parameter_bars(fits, param_config)
+# -
+
+# ### fit surfaces
 
 # +
 from skopt.plots import plot_objective
 from skopt.utils import create_result
-opt = fits.loc["Bolt","opt"]
+opt = fits.loc["Precoz","opt"]
 res = create_result(
     Xi=opt.Xi,
     yi=np.array(opt.yi),
@@ -1069,74 +1268,3 @@ res = create_result(
 )
 
 plot_objective(res)
-# -
-
-'Terrier'
-
-# +
-Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
-                     'Lentil.Phenology.StartFloweringDAS',
-                     'Lentil.Phenology.StartPoddingDAS']
-
-# ------------------------------------------------------------
-# Parameter definitions
-# ------------------------------------------------------------
-
-param_config = [
-    {
-        "name": "[Phenology].JuvenileBase.FixedValue",
-        "short_name": "JuvBas",
-        "bounds": (0, 400),
-        "step": 5,
-        "initial": 108.8739
-    },
-    {
-        "name": "[Phenology].VernSensitivity.FixedValue",
-        "short_name": "VrnSen",
-        "bounds": (0.0, 2.0),
-        "step": 0.01,
-        "initial": 0.8966
-    },
-    {
-        "name": "[Phenology].InductiveBase.FixedValue",
-        "short_name": "IndBas",
-        "bounds": (0.0, 400.0),
-        "step": 5,
-        "initial": 0
-    },
-    {
-        "name": "[Phenology].InductivePpSensitivity.FixedValue",
-        "short_name": "PpSen",
-        "bounds": (0.0, 2.0),
-        "step": 0.01,
-        "initial": 0.4307
-    },
-    {
-        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
-        "short_name": "TtFlo",
-        "bounds": (100.0, 300.0),
-        "step": 5,
-        "initial": 130
-    },
-    {
-        "name": "[Phenology].TtPodDevelopment.FixedValue",
-        "short_name": "TtPod",
-        "bounds": (100, 300),
-        "step": 5,
-        "initial": 165
-    }
-]
-
-fits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
-for c in ['Terrier']:
-    fits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
-                                                                        CultivarToFit = c,
-                                                                        ObsPredTableName = "HarvestObsPred",
-                                                                        fitting_variables=Fitting_Variables,
-                                                                        param_config=param_config,
-                                                                        random_sample_size=29,
-                                                                        stage_size=10,
-                                                                        max_stages=5,
-                                                                        shrink_factor=0.05,
-                                                                        local_steps=10
-                                                                    )
