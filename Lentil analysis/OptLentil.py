@@ -408,6 +408,27 @@ def quantise(x, param_config):
         q.append(val)
     return q
 
+import numpy as np
+
+def format_value(val, step):
+    """
+    Quantise and format a parameter value consistently.
+    """
+
+    if step is None:
+        return str(val)
+
+    # quantise
+    val = round(val / step) * step
+
+    # determine decimals from step
+    if step >= 1:
+        return str(int(round(val)))
+    else:
+        decimals = int(round(-np.log10(step)))
+        return f"{val:.{decimals}f}"
+
+
 def fit_cultivar(
     CultivarToFit,
     ObsPredTableName,
@@ -779,6 +800,31 @@ CULTIVAR_FILE_DICT = {
  'Syrian': ['Lentil.apsimx'],
  'Terrier': ['FAHMA_Lentil.apsimx']}
 
+CULTIVAR_FILE_DICT_NAPA = {
+ 'Bolt': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
+ 'HallmarkXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  'FAHMA_Lentil.apsimx'],
+ 'Jumbo2': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  'FAHMA_Lentil.apsimx'],
+ 'KelpieXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
+ 'Terrier': ['FAHMA_Lentil.apsimx']}
+
 
 # ## Functions to create data structures for running cultivar
 
@@ -918,7 +964,7 @@ param_config = [
 ]
 
 best_x, best_y, STORE, opt = fit_cultivar(
-                                            CultivarToFit = "Flash",
+                                            CultivarToFit = "HallmarkXT",
                                             ObsPredTableName = "HarvestObsPred",
                                             fitting_variables=Fitting_Variables,
                                             param_config=param_config,
@@ -1268,3 +1314,110 @@ res = create_result(
 )
 
 plot_objective(res)
+# -
+
+# ## Inject fitted parameters to lentil.json
+
+# +
+import json
+
+def update_apsimx_cultivars(
+    crop_json_path,
+    fits_df,
+    param_config
+):
+    """
+    Update cultivar parameter commands in an APSIM .apsimx file.
+
+    Parameters
+    ----------
+    crop_json_path : str
+        Path to crop.json config file
+    fits_df : DataFrame
+        Must contain index = cultivar name, and column 'best_x'
+    param_config : list of dict
+        Defines parameter "name" field
+    """
+
+    # -------------------------
+    # Load JSON
+    # -------------------------
+    with open(crop_json_path, "r") as f:
+        data = json.load(f)
+
+    # -------------------------
+    # Helper: find Cultivars node
+    # -------------------------
+    def find_cultivars_node(node):
+        if isinstance(node, dict):
+            if node.get("Name") == "Cultivars":
+                return node
+            for child in node.get("Children", []):
+                result = find_cultivars_node(child)
+                if result:
+                    return result
+        elif isinstance(node, list):
+            for item in node:
+                result = find_cultivars_node(item)
+                if result:
+                    return result
+        return None
+
+    cultivars_node = find_cultivars_node(data)
+
+    if cultivars_node is None:
+        raise RuntimeError("Could not find 'Cultivars' node in APSIM file")
+
+    # -------------------------
+    # Update each cultivar
+    # -------------------------
+    for cultivar_node in cultivars_node.get("Children", []):
+
+        cultivar_name = cultivar_node.get("Name")
+
+        if cultivar_name not in fits_df.index:
+            continue  # skip cultivars without fitted values
+
+        best_x = fits_df.loc[cultivar_name, "best_x"]
+
+        # -------------------------
+        # Build new command list
+        # -------------------------
+        commands = []
+
+        for val, p in zip(best_x, param_config):
+
+            # optional: quantise again for safety
+
+            step = p.get("step")
+            
+            val_str = format_value(val, step)
+            
+            cmd = f"{p['name']} = {val_str}"
+
+            commands.append(cmd)
+
+        # -------------------------
+        # Replace Command block
+        # -------------------------
+        cultivar_node["Command"] = commands
+
+        print(f"Updated cultivar: {cultivar_name}")
+
+    # -------------------------
+    # Save new file
+    # -------------------------
+    with open(crop_json_path, "w") as f:
+        json.dump(data, f, indent=2)
+
+    print(f"\nUpdated APSIM file written to:\n{crop_json_path}")
+
+
+# -
+
+update_apsimx_cultivars(
+    crop_json_path="C:\GitHubRepos\ApsimX\Models\Resources\Lentil.json",
+    fits_df=fits,
+    param_config=param_config
+)
+

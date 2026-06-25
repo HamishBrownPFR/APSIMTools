@@ -228,7 +228,7 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartBuddingDAS",
     mode='harvest',
-    filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
     color_by = "Experiment",
     marker_by = "Lentil.SowingData.Cultivar",
     size_by=None,
@@ -241,7 +241,7 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartFloweringDAS",
     mode='harvest',
-    filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
     color_by = "Experiment",
     marker_by = "Lentil.SowingData.Cultivar",
     size_by=None,
@@ -254,20 +254,22 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartPoddingDAS",
     mode='harvest',
-    filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Experiment",
-    marker_by = "Lentil.SowingData.Cultivar",
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by = "Lentil.SowingData.Cultivar",
+    marker_by = "Experiment",
     size_by=None,
 )
+
+# ### Maturity DAS
 
 graph = plot_obs_pred_by_branch(
     tidy = tidy,
     config=CONFIG,
-    variable = "Lentil.Phenology.StartPoddingDAS",
+    variable = "Lentil.Phenology.MaturityDAS",
     mode='harvest',
-    filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Experiment",
-    marker_by = "Lentil.SowingData.Cultivar",
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by = "Lentil.SowingData.Cultivar",
+    marker_by = "Experiment",
     size_by=None,
 )
 
@@ -292,6 +294,32 @@ graph = plot_obs_pred_by_branch(
     tidy = tidy,
     config=CONFIG,
     variable = "Lentil.Grain.Number",
+    mode='harvest',
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by = "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
+
+# ### Grain Size
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.Grain.Size",
+    mode='harvest',
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by = "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
+
+# ### Harvest Index
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.Grain.HarvestIndex",
     mode='harvest',
     #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
     color_by = "Experiment",
