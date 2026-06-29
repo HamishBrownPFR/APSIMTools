@@ -811,7 +811,6 @@ def plot_obs_pred_by_branch(
     marker_by=None,
     size_by=None,
     show_ellipses=False,
-    additional_index_maps=None
 ):
     
     # -------------------------------
@@ -1306,7 +1305,14 @@ def plot_stage_timeseries(
     # -------------------------------
     # PANEL SETUP
     # -------------------------------
-    panel_vals = sorted(df[panels_by].dropna().unique()) if panels_by else [None]
+    
+    if panels_by:
+        # only panels where observed data exists
+        valid_panels = df.loc[df["obs"].notna(), panels_by]
+    
+        panel_vals = sorted(valid_panels.dropna().unique())
+    else:
+        panel_vals = [None]
 
     n_panels = len(panel_vals)
     ncols = min(max_cols, n_panels)
