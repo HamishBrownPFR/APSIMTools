@@ -55,7 +55,7 @@ from apsim_tools.runner import (
 # CONFIG
 # ======================
 BRANCHES = {
-    "master": "Lentil",
+    "master": "Lentil_Model_NaPA",
 }
 
 # ======================
@@ -72,7 +72,7 @@ RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 REPO_PATH = Path(r"C:\GitHubRepos\ApsimX")
 
 SIM_FILES = [
-    Path(REPO_PATH) / 'Prototypes/Lentil/Lentil.apsimx',
+    #Path(REPO_PATH) / 'Prototypes/Lentil/Lentil.apsimx',
     Path(REPO_PATH) / 'Prototypes/Lentil/FAHMA/FAHMA_Lentil.apsimx',
     Path(REPO_PATH) / 'Prototypes/Lentil/NaPA/2019_NSW_Greenethorpe_Mixed_Detailed.apsimx',
     Path(REPO_PATH) / 'Prototypes/Lentil/NaPA/2022_Vic_Kalkee_Lentil_Detailed.apsimx',
@@ -150,17 +150,47 @@ project_group={
  '2024_Vic_Walpeup_Lentil_Satellite':'NaPA',
 }
 
+WaterIndex = pd.read_pickle('IrrigIndex')
+sim_water_map = dict(zip(WaterIndex["SimulationName"], WaterIndex["WaterGroup"]))
+
 # Pack maps together ready to be inserted as indexes 
 additional_index_maps = {
     "ProjectGroup": {
         "source": "Experiment",
         "map": project_group
+    },
+    "WaterTrt": {
+        "source": "SimulationName",
+        "map": sim_water_map
     }
 }
 
 
-# -
+# +
 
+# # get unique simulation names
+# sims = tidy["SimulationName"].drop_duplicates()
+
+# # classification function
+# def classify_sim(name):
+#     s = str(name).lower()
+
+#     if "rainfed" in s:
+#         return "RainFed"
+#     elif "irrigated" in s:
+#         return "Irrigated"
+#     elif "rainout" in s:
+#         return "RainOut"
+#     else:
+#         return "None"
+
+# # build dictionary
+# sim_water_map = {sim: classify_sim(sim) for sim in sims}
+
+# df = pd.DataFrame(list(sim_water_map.items()), columns=["SimulationName", "WaterGroup"])
+
+# df.to_pickle('IrrigIndex')
+# -
 # ## Write file for command line tool to apply to each .apsimx file to be run.
 # If you want to make standard modifications to all files run it can be done here
 
@@ -178,8 +208,9 @@ def write_apply_file(sim_file):
     lines = []
 
     # ---------------------------------------------
-    # Add AnalysisReport to all Simulation nodes
+    # AnalysisReport to all Simulation nodes
     # ---------------------------------------------
+    #lines.append(f"delete all [Report]")
     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
     
     # ---------------------------------------------
@@ -191,7 +222,7 @@ def write_apply_file(sim_file):
     # Save + run
     # ---------------------------------------------
     lines.append(f"save {sim_file}")
-    lines.append(f"run {sim_file}")
+    lines.append(f"run")
 
     # Write file
     apply_file.write_text("\n".join(lines))
@@ -207,7 +238,7 @@ def write_apply_file(sim_file):
 # ======================
 
 # Read in raw data
-raw = load_all(config=CONFIG, apply_fn=write_apply_file)
+raw = load_all(config=CONFIG, apply_fn=write_apply_file)#, reset_branch=False)
 
 # ✅ Ensure SimulationName exists (from AnalysisReport)
 if "Simulation.Name" in raw.columns:
@@ -217,9 +248,24 @@ if "Simulation.Name" in raw.columns:
 tidy = to_tidy(raw, config=CONFIG, additional_index_maps=additional_index_maps)
 # -
 
+
+
 # # Harvest predictions
 
 # ## Phenology
+
+# ### Emergence DAS
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.Phenology.EmergenceDAS",
+    mode='harvest',
+    #filters = {"Experiment": ["Gatton19"]},
+    color_by = "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
 
 # ### Budding DAS
 
@@ -228,9 +274,9 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartBuddingDAS",
     mode='harvest',
-    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Experiment",
-    marker_by = "Lentil.SowingData.Cultivar",
+    #filters = {"Experiment": ["Gatton19"]},
+    marker_by = "Experiment",
+    color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
 )
 
@@ -242,8 +288,8 @@ graph = plot_obs_pred_by_branch(
     variable = "Lentil.Phenology.StartFloweringDAS",
     mode='harvest',
     #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Experiment",
-    marker_by = "Lentil.SowingData.Cultivar",
+    marker_by = "Experiment",
+    color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
 )
 
@@ -255,8 +301,8 @@ graph = plot_obs_pred_by_branch(
     variable = "Lentil.Phenology.StartPoddingDAS",
     mode='harvest',
     #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Lentil.SowingData.Cultivar",
-    marker_by = "Experiment",
+    color_by = "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
     size_by=None,
 )
 
@@ -282,10 +328,12 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Grain.Wt",
     mode='harvest',
-    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    # filters = {"project_group": ["FAHMA"],
+    #            "project_group": ["NaPA"]},
     color_by = "Experiment",
     marker_by = "Lentil.SowingData.Cultivar",
     size_by=None,
+    #additional_index_maps=additional_index_maps
 )
 
 # ### Grain number
@@ -342,6 +390,129 @@ graph = plot_obs_pred_by_branch(
     size_by=None,
 )
 
+# # Time series plots
+
+# ## Node Number
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.Leaf.NodeNumber",
+    mode="daily",
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by =  "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
+
+plot_stage_timeseries(
+    tidy = tidy,
+    config = CONFIG,
+    variable = "Lentil.Leaf.NodeNumber",
+    color_by="WaterTrt",
+    marker_by=None,
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+tidy[(tidy.variable=="Lentil.Leaf.NodeNumber")&(tidy.type=="obs")].Experiment.drop_duplicates()
+
+tidy[(tidy.variable=="Lentil.Leaf.NodeNumber")&(tidy.type=="obs")].loc[:,"Lentil.SowingData.Cultivar"].drop_duplicates()
+
+NodeFrame = tidy[(tidy.variable=="Lentil.Leaf.NodeNumber")&(tidy.type=="obs")].groupby(['Lentil.SowingData.Cultivar','file']).count().index.to_frame()
+
+# +
+CvList = NodeFrame.index.get_level_values(0).drop_duplicates().values
+CvFileDict = {}
+
+for Cv in CvList:
+    CvFileDict[Cv] = NodeFrame.loc[Cv,'file'].drop_duplicates().to_list()
+CvFileDict
+# -
+
+# ## AboveGround Wt
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.AboveGround.Wt",
+    mode="daily",
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    color_by = "Experiment",
+    marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
+
+plot_stage_timeseries(
+    tidy = tidy,
+    config = CONFIG,
+    variable = "Lentil.AboveGround.Wt",
+    color_by="WaterTrt",
+    marker_by=None,
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# ## Leaf Wt
+
+plot_stage_timeseries(
+    tidy = tidy,
+    config = CONFIG,
+    variable = "Lentil.Leaf.Wt",
+    color_by="WaterTrt",
+    marker_by=None,
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# ## Stem Wt
+
+plot_stage_timeseries(
+    tidy = tidy,
+    config = CONFIG,
+    variable = "Lentil.Stem.Wt",
+    color_by="WaterTrt",
+    marker_by=None,
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
+# ## Cover
+
+# +
+# plot_stage_timeseries(
+#     tidy = tidy,
+#     config = CONFIG,
+#     variable = "Lentil.Leaf.Canopy.CoverGreen",
+#     color_by="WaterTrt",
+#     marker_by=None,
+#     panels_by="Experiment",
+#     max_cols=4,
+#     panel_scale=0.8,
+# )
+# plt.show()
+# -
+
+plot_stage_timeseries(
+    tidy = tidy,
+    config = CONFIG,
+    variable = "Lentil.Leaf.Canopy.CoverTotal",
+    color_by="WaterTrt",
+    marker_by=None,
+    panels_by="Experiment",
+    max_cols=4,
+    panel_scale=0.8,
+)
+plt.show()
+
 # # Work out list of files to run for each cultivar for phenology fitting
 
 obs = tidy[tidy.type=='obs']
@@ -354,81 +525,167 @@ phenObs#[phenObs.file=="2024_Vic_Walpeup_Lentil_Satellite.apsimx"]
 
 phenFrame = phenObs.groupby(['Lentil.SowingData.Cultivar','file']).count().index.to_frame()
 
-CvList = phenFrame.index.get_level_values(0).drop_duplicates().values
-
 # +
+CvList = phenFrame.index.get_level_values(0).drop_duplicates().values
 CvFileDict = {}
 
 for Cv in CvList:
     CvFileDict[Cv] = phenFrame.loc[Cv,'file'].drop_duplicates().to_list()
-# -
-
 CvFileDict
 
-# +
-
-obs_raw = raw[raw["type"] == "obs"]
-
-cols = obs_raw.columns
-print(cols)
-
-obs_raw.head(20)
-
-
-# +
-
-obs_raw[
-    obs_raw["file"] == "2024_Vic_Walpeup_Lentil_Satellite.apsimx"
-].head(20)
-
-
-# +
-
-raw_obs = raw[raw["type"] == "obs"]
-
-sat_obs = raw_obs[
-    raw_obs["file"] == "2024_Vic_Walpeup_Lentil_Satellite.apsimx"
-].copy()
-
-
-# +
-
-# columns that could contain real observations
-
-# ONLY variables you actually care about
-obs_vars = [
-    'Lentil.Phenology.StartBuddingDAS',
-    'Lentil.Phenology.StartFloweringDAS',
-    'Lentil.Phenology.StartPoddingDAS'
-]
-
-value_cols = [c for c in obs_vars if c in sat_obs.columns]
-
-
-# detect rows with any non-NaN values
-has_real_data = sat_obs[value_cols].notna().any(axis=1)
-
-print("Rows with real data:", has_real_data.sum())
-print("Total rows:", len(sat_obs))
 
 # -
 
-sat_obs[value_cols]
+# # Graph simulated water stress as a check
 
-import sqlite3
-db_file =  Path(REPO_PATH) / 'Prototypes/Lentil/NaPA/2024_Vic_Walpeup_Lentil_Satellite.db'
-with sqlite3.connect(db_file) as conn:
-    df = pd.read_sql(f"SELECT * FROM Observed", conn)
+def plot_timeseries_by_experiment(
+    tidy,
+    raw,   # kept for compatibility, but NOT used anymore
+    variable,
+    color_var
+):
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
 
-df.columns
+    # -------------------------------
+    # STEP 1: FILTER TIDY DATA
+    # -------------------------------
+    df = tidy[
+        (tidy["type"] == "pred") &
+        (tidy["variable"] == variable)
+    ].copy()
 
-df.SimulationID.drop_duplicates()
+    if df.empty:
+        raise ValueError(f"No data found for variable '{variable}'")
 
-import sqlite3
-db_file =  Path(REPO_PATH) / 'Prototypes/Lentil/NaPA/2024_Vic_Walpeup_Lentil_Satellite.db'
-with sqlite3.connect(db_file) as conn:
-    df = pd.read_sql(f"SELECT * FROM AnalysisReport", conn)
+    # ensure datetime
+    df["Clock.Today"] = pd.to_datetime(df["Clock.Today"], errors="coerce")
 
-df.SimulationID.drop_duplicates()
+    # -------------------------------
+    # STEP 3: COLOUR RULE
+    # -------------------------------
+    def get_color(val):
+        if val is None or pd.isna(val):
+            return "green"
+
+        val = str(val).lower()
+
+        if val == "rainfed":
+            return "red"
+        elif val == "irrigated":
+            return "blue"
+        elif val == "rainout":
+            return "orange"
+        else:
+            return "green"
+
+    # -------------------------------
+    # STEP 4: CREATE PANELS
+    # -------------------------------
+    experiments = sorted(df["Experiment"].dropna().unique())
+
+    n = len(experiments)
+    if n == 0:
+        raise ValueError("No experiments found")
+
+    ncols = min(3, n)
+    nrows = int(np.ceil(n / ncols))
+
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(6 * ncols, 4 * nrows),
+        sharey=True,
+        constrained_layout=True
+    )
+
+    axes = np.array(axes).reshape(-1)
+
+    # -------------------------------
+    # STEP 5: PLOT EACH PANEL
+    # -------------------------------
+    for ax, exp in zip(axes, experiments):
+
+        exp_df = df[df["Experiment"] == exp]
+
+        if exp_df.empty:
+            ax.set_title(f"{exp} (no data)")
+            ax.set_axis_off()
+            continue
+
+        for sim_name, sub in exp_df.groupby("SimulationName"):
+
+            sub = sub.sort_values("Clock.Today")
+
+            # get water group
+            vals = sub["WaterTrt"].dropna().unique()
+            val = vals[0] if len(vals) > 0 else None
+
+            color = get_color(val)
+
+            ax.plot(
+                sub["Clock.Today"],
+                sub["value"],
+                color=color,
+                alpha=0.7,
+                linewidth=1
+            )
+
+        ax.set_title(exp)
+        ax.set_xlabel("Date")
+        ax.set_ylabel(variable)
+        ax.grid(alpha=0.2)
+
+    # -------------------------------
+    # CLEAN UNUSED PANELS
+    # -------------------------------
+    for ax in axes[n:]:
+        ax.set_visible(False)
+
+    # -------------------------------
+    # LEGEND
+    # -------------------------------
+    import matplotlib.lines as mlines
+
+    handles = [
+        mlines.Line2D([], [], color="red", label="RainFed"),
+        mlines.Line2D([], [], color="blue", label="Irrigated"),
+        mlines.Line2D([], [], color="orange", label="RainOut"),
+        mlines.Line2D([], [], color="green", label="Other / Missing"),
+    ]
+
+    fig.legend(
+        handles=handles,
+        loc="upper center",
+        ncol=4,
+        frameon=False
+    )
+
+    # -------------------------------
+
+    return fig
+
+
+graph = plot_timeseries_by_experiment(
+    tidy=tidy,
+    raw=raw,
+    variable="Lentil.Leaf.Canopy.Fw",
+    color_var="WaterTrt"
+)
+
+graph = plot_timeseries_by_experiment(
+    tidy=tidy,
+    raw=raw,
+    variable="Lentil.Phenology.Photoperiod",
+    color_var="WaterTrt"
+)
+
+graph = plot_timeseries_by_experiment(
+    tidy=tidy,
+    raw=raw,
+    variable="IWeather.MinT",
+    color_var="WaterTrt"
+)
 
 # ### 

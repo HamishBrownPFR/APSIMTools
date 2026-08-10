@@ -185,22 +185,25 @@ class ResultsStore:
         return pd.DataFrame(self.records)
 
 def runModelGetStats(runSpec, paramSet, fittingVariables):
-
+    start = dt.datetime.now()
     apsimx = os.path.join(runSpec["simulationPath"], f"{runSpec['apsimFileName']}.apsimx")
     apply  = os.path.join(runSpec["simulationPath"], f"tempApplyCLI.txt")
     
     db = os.path.join(runSpec["simulationPath"], f"{runSpec['apsimFileName']}.db")
     db_path = Path(db)
 
+    #print('set up' + str((dt.datetime.now()-start).seconds))
     # Ensure clean DB
     if db_path.exists():
         db_path.unlink()
-
+    
+    #print('delete db ' + str((dt.datetime.now()-start).seconds))
     # Write apply file
     write_cultivar_apply_file(apply_path=Path(apply),apsimx_path=Path(apsimx),cultivar_name=runSpec["cultivarName"],
         parameters=paramSet,playListName="tempChooseCultivar")
 
-    start = dt.datetime.now()
+    #print('write files' + str((dt.datetime.now()-start).seconds))
+    #start = dt.datetime.now()
 
     # -----------------------------
     # RUN APSIM (main run)
@@ -208,7 +211,7 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
     result = subprocess.run(
         [
             APSIM_EXE,
-            apsimx,
+            #apsimx,
             "--apply", apply,
             "--playlist", "tempChooseCultivar"
         ],
@@ -217,23 +220,25 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
         text=True,
         timeout=300
     )
-
+    
+    #print('run files' + str((dt.datetime.now()-start).seconds))
     output = result.stdout or ""
-
+    #print('output' + str((dt.datetime.now()-start).seconds))
+    
     # --- Detect NO MATCH case ---
     if "Playlist was used but no simulations or experiments match the contents of the list" in output:
         print(f"⚠️ No matching simulations for {runSpec['apsimFileName']} (skipping)")
 
         # cleanup before exit
-        remove_cultivar_apply_file(apply_path=Path(apply),apsimx_path=Path(apsimx),
-            cultivar_name=runSpec["cultivarName"],playListName="tempChooseCultivar")
+        # remove_cultivar_apply_file(apply_path=Path(apply),apsimx_path=Path(apsimx),
+        #     cultivar_name=runSpec["cultivarName"],playListName="tempChooseCultivar")
 
-        subprocess.run(
-            [APSIM_EXE, apsimx, "--apply", apply],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
+        # subprocess.run(
+        #     [APSIM_EXE, apsimx, "--apply", apply],
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.STDOUT,
+        #     text=True
+        # )
 
         endrun = dt.datetime.now()
         runtime = (endrun - start).seconds
@@ -244,30 +249,33 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
     if output.strip():
         print(output)
 
-    #-----------------------------
-    #CLEANUP (remove temp nodes)
-    #-----------------------------
-    remove_cultivar_apply_file(
-        apply_path=Path(apply),
-        apsimx_path=Path(apsimx),
-        cultivar_name=runSpec["cultivarName"],
-        playListName="tempChooseCultivar"
-    )
+    # #-----------------------------
+    # #CLEANUP (remove temp nodes)
+    # #-----------------------------
+    # remove_cultivar_apply_file(
+    #     apply_path=Path(apply),
+    #     apsimx_path=Path(apsimx),
+    #     cultivar_name=runSpec["cultivarName"],
+    #     playListName="tempChooseCultivar"
+    # )
+    
+    # print('write clean files' + str((dt.datetime.now()-start).seconds))
+    # result = subprocess.run(
+    #     [
+    #         APSIM_EXE,
+    #         apsimx,
+    #         "--apply", apply
+    #     ],
+    #     stdout=subprocess.PIPE,
+    #     stderr=subprocess.STDOUT,
+    #     text=True
+    # )
 
-    result = subprocess.run(
-        [
-            APSIM_EXE,
-            apsimx,
-            "--apply", apply
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
-
-    if result.stdout and result.stdout.strip():
-        print(result.stdout)
-
+    # print('apply clean files' + str((dt.datetime.now()-start).seconds))
+    
+    # if result.stdout and result.stdout.strip():
+    #     print(result.stdout)
+    #print('end run' + str((dt.datetime.now()-start).seconds))
     endrun = dt.datetime.now()
     runtime = (endrun - start).seconds
 
@@ -294,7 +302,7 @@ def runModelGetStats(runSpec, paramSet, fittingVariables):
 
     finally:
         con.close()
-
+    #print('results read' + str((dt.datetime.now()-start).seconds))
     return obs_pred, runtime
 
 def runModelItter(runSpecs, paramSet, fittingVariables, resultsStore=None, printResult=False):
@@ -666,17 +674,37 @@ def write_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name
             "[Phenology].VernSensitivity.FixedValue": 0.22,
         }
     """
-
+    report_library = r"C:/GitHubRepos/ApsimX/Prototypes/Lentil/Report_lib.apsimx"
     lines = []
 
+    
     # Load base apsimx
     lines.append(f"load {apsimx_path}")
+    
+    # ---------------------------------------------
+    # Remove existing reports and add HarvestReport to all Simulation nodes
+    # ---------------------------------------------
+    lines.append(f"delete all [Report]")
+    lines.append(f"add [HarvestReport] from {report_library} to all [Zone]")
 
-    # Select cultivar via playlist
+    # ---------------------------------------------
+    # Remove existing ObsPred table and add HarvestObsPred to data store
+    # ---------------------------------------------
+    lines.append(f"delete all [PredictedObserved]")
+    lines.append(f"add new PredictedObserved to [DataStore] name HarvestObsPred")
+    lines.append(f"[HarvestObsPred].PredictedTableName  = HarvestReport")
+    lines.append(f"[HarvestObsPred].ObservedTableName  = Observed")
+    lines.append(f"[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
+    lines.append(f"[HarvestObsPred].FieldName2UsedForMatch  = Lentil.Phenology.CurrentStageName")
+    
+
+    # Remove existing playlists and add new one to Select cultivar
+    lines.append(f"delete all [Playlist]")
     lines.append(f"add new Playlist to [Simulations] name {playListName}")
     lines.append(f"[{playListName}].Text=*{cultivar_name}*")
 
-    # Build command list
+    # Remove existing cultivar overwrites and add new one for current cultivar and parameter set
+    lines.append(f"delete all [Cultivar] from [Replacements]")
     lines.append(f"add new Cultivar to [Replacements] name {cultivar_name}")
     lines.append(f"[Replacements].{cultivar_name}.Command = ")
     
@@ -719,7 +747,8 @@ def remove_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_nam
 # +
 FITTING_VARIABLES = ['Lentil.Phenology.StartBuddingDAS',
                      'Lentil.Phenology.StartFloweringDAS',
-                     'Lentil.Phenology.StartPoddingDAS'#'Lentil.Phenology.MaturityDAS'
+                     'Lentil.Phenology.StartPoddingDAS',
+                     'Lentil.Phenology.MaturityDAS'
                     ]
 
 APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Debug\net8.0\Models.exe"
@@ -727,7 +756,7 @@ APSIM_EXE = r"C:\GitHubRepos\ApsimX\bin\Debug\net8.0\Models.exe"
 cultivar_params = {
                     "[Phenology].JuvenileBase.FixedValue": 96,
                     "[Phenology].VernSensitivity.FixedValue": 0.63,
-                    "[Phenology].InductivePpSensitivity.FixedValue": 0.44
+                    "[Phenology].InductivePpSensitivity.FixedValue": 0.44, 
                   }
 
 runSpec = {
@@ -745,6 +774,18 @@ runSpecs.append(runSpec)
 runModelItter(runSpecs, cultivar_params, FITTING_VARIABLES, resultsStore=testStore, printResult=True)
 df = testStore.to_dataframe()
 # -
+
+apply  = "C:\\GitHubRepos\\ApsimX\\Prototypes\\Lentil\\FAHMA\\tempApplyCLI.txt"
+apsimx = "C:\\GitHubRepos\\ApsimX\\Prototypes\\Lentil\\FAHMA\\FAHMA.apsimx"
+apsimx2 = "C:\\GitHubRepos\\ApsimX\\Prototypes\\Lentil\\NaPA\\2019_NSW_Greenethorpe_Mixed_Detailed.apsimx"
+subprocess.run(
+        [
+            APSIM_EXE,
+            "--apply", apply,
+            "--playlist", "tempChooseCultivar"
+        ]
+)
+#print(result.stdout)
 
 # # Test with single cultivar over multiple files
 
@@ -801,28 +842,64 @@ CULTIVAR_FILE_DICT = {
  'Terrier': ['FAHMA_Lentil.apsimx']}
 
 CULTIVAR_FILE_DICT_NAPA = {
- 'Bolt': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+ 'Ace': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx'],
+ 'Bolt': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx',
+  '2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
   '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_SA_Warnertown_Lentil_Satellite.apsimx',
   '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2022_Vic_Ouyen_Lentil_Satellite.apsimx',
   '2023_SA_Pinery_Lentil_Detailed.apsimx',
-  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
- 'HallmarkXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
-  '2022_SA_Riverton_Lentil_Detailed.apsimx',
-  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
-  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_SA_Warnertown_Lentil_Satellite.apsimx',
   '2023_Vic_Dooen_Lentil_Detailed.apsimx',
-  'FAHMA_Lentil.apsimx'],
- 'Jumbo2': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2023_Vic_Ouyen_Lentil_Satellite.apsimx',
+  '2024_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2024_Vic_Walpeup_Lentil_Satellite.apsimx'],
+ 'Greenfield': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx'],
+ 'HallmarkXT': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx',
+  '2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
   '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_SA_Warnertown_Lentil_Satellite.apsimx',
   '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2022_Vic_Ouyen_Lentil_Satellite.apsimx',
   '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_SA_Warnertown_Lentil_Satellite.apsimx',
   '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  '2023_Vic_Ouyen_Lentil_Satellite.apsimx',
+  '2024_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2024_Vic_Walpeup_Lentil_Satellite.apsimx',
   'FAHMA_Lentil.apsimx'],
- 'KelpieXT': ['2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+ 'Jumbo2': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx',
+  '2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
   '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_SA_Warnertown_Lentil_Satellite.apsimx',
   '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2022_Vic_Ouyen_Lentil_Satellite.apsimx',
   '2023_SA_Pinery_Lentil_Detailed.apsimx',
-  '2023_Vic_Dooen_Lentil_Detailed.apsimx'],
+  '2023_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  '2023_Vic_Ouyen_Lentil_Satellite.apsimx',
+  '2024_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2024_Vic_Walpeup_Lentil_Satellite.apsimx',
+  'FAHMA_Lentil.apsimx'],
+ 'KelpieXT': ['2022_NSW_Methul_Lentil_Satellite.apsimx',
+  '2022_NSW_RankinsSprings_Lentil_Satellite.apsimx',
+  '2022_NSW_WaggaWagga_Lentil_Detailed.apsimx',
+  '2022_SA_Riverton_Lentil_Detailed.apsimx',
+  '2022_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2022_Vic_Kalkee_Lentil_Detailed.apsimx',
+  '2022_Vic_Ouyen_Lentil_Satellite.apsimx',
+  '2023_SA_Pinery_Lentil_Detailed.apsimx',
+  '2023_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2023_Vic_Dooen_Lentil_Detailed.apsimx',
+  '2023_Vic_Ouyen_Lentil_Satellite.apsimx',
+  '2024_SA_Warnertown_Lentil_Satellite.apsimx',
+  '2024_Vic_Walpeup_Lentil_Satellite.apsimx'],
  'Terrier': ['FAHMA_Lentil.apsimx']}
 
 
@@ -840,7 +917,7 @@ def create_filesToRun_for_cultivar(cultivar_name):
 
     filesToRun = []
 
-    file_list = CULTIVAR_FILE_DICT.get(cultivar_name, [])
+    file_list = CULTIVAR_FILE_DICT_NAPA.get(cultivar_name, [])
 
     for fname in file_list:
 
@@ -889,12 +966,9 @@ def create_runSpecs_for_cultivar(cultivarName, reportName):
 
 # +
 cultivar_params = {
-"[Phenology].JuvenileBase.FixedValue": 108.8739,
-"[Phenology].VernSensitivity.FixedValue": 0.8966,
-"[Phenology].InductiveBase.FixedValue": 0.0000,
-"[Phenology].InductivePpSensitivity.FixedValue": 0.4307,
-"[Phenology].TtFlowerDevelopment.FixedValue": 130,
-"[Phenology].TtPodDevelopment.FixedValue": 265
+                    "[Phenology].JuvenileBase.FixedValue": 96,
+                    "[Phenology].VernSensitivity.FixedValue": 0.63,
+                    "[Phenology].InductivePpSensitivity.FixedValue": 0.44   
                   }
 
 runSpecs = create_runSpecs_for_cultivar("HallmarkXT", "HarvestObsPred")
@@ -910,9 +984,7 @@ df = testStore.to_dataframe()
 # ## Run optimisation
 
 # +
-Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
-                     'Lentil.Phenology.StartFloweringDAS',
-                     'Lentil.Phenology.StartPoddingDAS']
+Fitting_Variables = ['Lentil.Phenology.StartFloweringDAS']
 
 # ------------------------------------------------------------
 # Parameter definitions
@@ -920,47 +992,27 @@ Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
 
 param_config = [
     {
-        "name": "[Phenology].JuvenileBase.FixedValue",
-        "short_name": "JuvBas",
+        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
+        "short_name": "FloTt",
         "bounds": (0, 400),
         "step": 5,
-        "initial": 108.8739
+        "initial": 200
     },
     {
-        "name": "[Phenology].VernSensitivity.FixedValue",
-        "short_name": "VrnSen",
-        "bounds": (0.0, 2.0),
-        "step": 0.01,
-        "initial": 0.8966
-    },
-    # {
-    #     "name": "[Phenology].InductiveBase.FixedValue",
-    #     "short_name": "IndBas",
-    #     "bounds": (0.0, 400.0),
-    #     "step": 5,
-    #     "initial": 0
-    # },
-    {
-        "name": "[Phenology].InductivePpSensitivity.FixedValue",
-        "short_name": "PpSen",
-        "bounds": (0.0, 2.0),
-        "step": 0.01,
-        "initial": 0.4307
+        "name": "[Phenology].FirstFlowersDeveloping.Progression.WangEagleTempScale.Response.MinTemp",
+        "short_name": "MinT",
+        "bounds": (0.0, 15),
+        "step": 1,
+        "initial": 10
     },
     {
-        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
-        "short_name": "TtFlo",
-        "bounds": (30.0, 300.0),
-        "step": 5,
-        "initial": 130
-    },
-    {
-        "name": "[Phenology].TtPodDevelopment.FixedValue",
-        "short_name": "TtPod",
-        "bounds": (30, 250),
-        "step": 5,
-        "initial": 165
+        "name": "[Phenology].FirstFlowersDeveloping.Progression.WangEagleTempScale.Response.OptTemp",
+        "short_name": "OptT",
+        "bounds": (16, 30),
+        "step": 1,
+        "initial": 25
     }
+    
 ]
 
 best_x, best_y, STORE, opt = fit_cultivar(
@@ -968,7 +1020,7 @@ best_x, best_y, STORE, opt = fit_cultivar(
                                             ObsPredTableName = "HarvestObsPred",
                                             fitting_variables=Fitting_Variables,
                                             param_config=param_config,
-                                            random_sample_size=29,
+                                            random_sample_size=19,
                                             stage_size=10,
                                             max_stages=5,
                                             shrink_factor=0.05,
@@ -1030,12 +1082,12 @@ plot_objective(res)
 
 # ## Run optimiser for all cultivars
 
-CULTIVAR_FILE_DICT.keys()
+# ## Budding
+
+CULTIVAR_FILE_DICT_NAPA.keys()
 
 # +
-Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS',
-                     'Lentil.Phenology.StartFloweringDAS',
-                     'Lentil.Phenology.StartPoddingDAS']
+Fitting_Variables = ['Lentil.Phenology.StartBuddingDAS']
 
 # ------------------------------------------------------------
 # Parameter definitions
@@ -1056,39 +1108,18 @@ param_config = [
         "step": 0.01,
         "initial": 0.8966
     },
-    # {
-    #     "name": "[Phenology].InductiveBase.FixedValue",
-    #     "short_name": "IndBas",
-    #     "bounds": (0.0, 400.0),
-    #     "step": 5,
-    #     "initial": 0
-    # },
     {
         "name": "[Phenology].InductivePpSensitivity.FixedValue",
         "short_name": "PpSen",
         "bounds": (0.0, 2.0),
         "step": 0.01,
         "initial": 0.4307
-    },
-    {
-        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
-        "short_name": "TtFlo",
-        "bounds": (30.0, 300.0),
-        "step": 5,
-        "initial": 130
-    },
-    {
-        "name": "[Phenology].TtPodDevelopment.FixedValue",
-        "short_name": "TtPod",
-        "bounds": (30, 250),
-        "step": 5,
-        "initial": 165
     }
 ]
 
-fits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
-for c in CULTIVAR_FILE_DICT.keys():
-    fits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+buddingFits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in CULTIVAR_FILE_DICT_NAPA.keys():
+    buddingFits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
                                                                         CultivarToFit = c,
                                                                         ObsPredTableName = "HarvestObsPred",
                                                                         fitting_variables=Fitting_Variables,
@@ -1101,7 +1132,129 @@ for c in CULTIVAR_FILE_DICT.keys():
                                                                     )
 # -
 
-fits.to_pickle("secondSetOfFits")
+buddingFits.to_pickle("buddingFits")
+
+# ## Flowering
+
+# +
+Fitting_Variables = ['Lentil.Phenology.StartFloweringDAS']
+
+# ------------------------------------------------------------
+# Parameter definitions
+# ------------------------------------------------------------
+
+param_config = [
+    {
+        "name": "[Phenology].TtFlowerDevelopment.FixedValue",
+        "short_name": "FloTt",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 200
+    },
+    {
+        "name": "[Phenology].FirstFlowersDeveloping.Progression.WangEagleTempScale.Response.MinTemp",
+        "short_name": "MinT",
+        "bounds": (0.0, 15),
+        "step": 1,
+        "initial": 10
+    },
+    {
+        "name": "[Phenology].FirstFlowersDeveloping.Progression.WangEagleTempScale.Response.OptTemp",
+        "short_name": "OptT",
+        "bounds": (16, 30),
+        "step": 1,
+        "initial": 25
+    }
+]
+
+FloweringFits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in CULTIVAR_FILE_DICT_NAPA.keys():
+    FloweringFits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+                                                                        CultivarToFit = c,
+                                                                        ObsPredTableName = "HarvestObsPred",
+                                                                        fitting_variables=Fitting_Variables,
+                                                                        param_config=param_config,
+                                                                        random_sample_size=19,
+                                                                        stage_size=10,
+                                                                        max_stages=5,
+                                                                        shrink_factor=0.05,
+                                                                        local_steps=0
+                                                                    )
+# -
+
+FloweringFits.to_pickle("floweringFits")
+
+# +
+Fitting_Variables = ['Lentil.Phenology.StartPoddingDAS']
+
+# ------------------------------------------------------------
+# Parameter definitions
+# ------------------------------------------------------------
+
+param_config = [
+    {
+        "name": "[Phenology].TtPodDevelopment.FixedValue",
+        "short_name": "PodTt",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 200
+    },
+]
+
+PoddingFits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in CULTIVAR_FILE_DICT_NAPA.keys():
+    PoddingFits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+                                                                        CultivarToFit = c,
+                                                                        ObsPredTableName = "HarvestObsPred",
+                                                                        fitting_variables=Fitting_Variables,
+                                                                        param_config=param_config,
+                                                                        random_sample_size=9,
+                                                                        stage_size=5,
+                                                                        max_stages=2,
+                                                                        shrink_factor=0.05,
+                                                                        local_steps=0
+                                                                    )
+
+# +
+Fitting_Variables = ['Lentil.Phenology.MaturityDAS']
+
+# ------------------------------------------------------------
+# Parameter definitions
+# ------------------------------------------------------------
+
+param_config = [
+    {
+        "name": "[Phenology].TtTerminalNode.FixedValue",
+        "short_name": "FloTt",
+        "bounds": (0, 400),
+        "step": 5,
+        "initial": 200
+    },
+    {
+        "name": "[Phenology].Ripening.Target.FixedValue",
+        "short_name": "RipT",
+        "bounds": (0.0, 15),
+        "step": 1,
+        "initial": 10
+    }
+]
+
+MaturityFits = pd.DataFrame(columns = ["best_x", "best_y", "STORE", "opt"])
+for c in CULTIVAR_FILE_DICT_NAPA.keys():
+    MaturityFits.loc[c,["best_x", "best_y", "STORE", "opt"]] = fit_cultivar(
+                                                                        CultivarToFit = c,
+                                                                        ObsPredTableName = "HarvestObsPred",
+                                                                        fitting_variables=Fitting_Variables,
+                                                                        param_config=param_config,
+                                                                        random_sample_size=19,
+                                                                        stage_size=5,
+                                                                        max_stages=5,
+                                                                        shrink_factor=0.05,
+                                                                        local_steps=5
+                                                                    )
+# -
+
+PoddingFits.to_pickle("poddingFits")
 
 # ## graphs
 
@@ -1115,7 +1268,7 @@ fits2 = pd.read_pickle("secondSetOfFits")
 def graphFitEvolve(fits):
     graph = plt.figure(figsize=(9,15))
     pos = 1
-    for c in CULTIVAR_FILE_DICT.keys():
+    for c in CULTIVAR_FILE_DICT_NAPA.keys():
         ax = graph.add_subplot(7,4,pos)
         fpos = 0
         for fit in fits:
@@ -1145,7 +1298,7 @@ graphFitEvolve([fits1,fits2])
 def graphObsPred(fits):
     graph = plt.figure(figsize=(9,15))
     pos = 1
-    for c in CULTIVAR_FILE_DICT.keys():
+    for c in CULTIVAR_FILE_DICT_NAPA.keys():
         ax = graph.add_subplot(7,4,pos)
         fpos = 0
         for fit in fits:

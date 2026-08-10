@@ -17,12 +17,10 @@ import datetime as dt
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import APSIMGraphHelpers as AGH
-import GraphHelpers as GH
 import matplotlib.dates as mdates
-import MathsUtilities as MUte
 import sqlite3
 import warnings
+from matplotlib.lines import Line2D
 
 # %%
 warnings.filterwarnings('ignore',category=pd.errors.PerformanceWarning)
@@ -91,22 +89,798 @@ Lines = {1: '-',
  15: '-,',
  16: ':'}
 
+# %% [markdown]
+# ## Additional indexes
 
 # %%
-def plotxy(experiments,xvar,yvar,data,addLeg = True,ncols=np.nan):
+DevMap = {
+"Accroc":"Winter",
+"Adv08_0008":"Winter",
+"Anapurna":"Winter",
+"Ararat":"Spring",
+"Atlanta":"Spring",
+"Axe":"Spring",
+"Batavia":"Spring",
+"Battenspring":"Spring",
+"Batten":"Winter",
+"Beaufort":"Spring",
+"Bennett":"Winter",
+"Bigred":"Winter",
+"Bolac":"Spring",
+"Braewood":"Spring",
+"Calabro":"Winter",
+"Calingiri":"Spring",
+"Catalina":"Spring",
+"Catapult":"Spring",
+"Cesario":"Winter",
+"Claire":"Winter",
+"Conquest":"Spring",
+"Corack":"Spring",
+"Crusader":"Spring",
+"Crw247":"Spring",
+"Cutlass":"Spring",
+"Dekan":"Spring",
+"Derrimut":"Spring",
+"Discovery":"Spring",
+"Drysdale":"Spring",
+"Eaglehawk":"Spring",
+"Einstein":"Winter",
+"Ellison":"Spring",
+"Forrest":"Spring",
+"Gamenya":"Spring",
+"Gauntlet":"Spring",
+"Gladius":"Spring",
+"Gorgan":"Spring",
+"Graham":"Winter",
+"Gregory":"Spring",
+"Gutha":"Spring",
+"H45":"Spring",
+"H46":"Spring",
+"Har1685":"Spring",
+"Hartog":"Spring",
+"Hume":"Spring",
+"Illabo":"Winter",
+"Istabraq":"Spring",
+"Janz":"Spring",
+"Kellalac":"Spring",
+"Kennedy":"Spring",
+"Kerrin":"Winter",
+"Keyu13":"Spring",
+"Kinsei":"Spring",
+"Kittyhawk":"Winter",
+"Konya":"Spring",
+"Lancer":"Spring",
+"Lincoln":"Spring",
+"Livingston":"Spring",
+"Mace":"Spring",
+"Magenta":"Spring",
+"Manning":"Winter",
+"Matong":"Spring",
+"Meering":"Spring",
+"Mercury":"Spring",
+"Merinda":"Spring",
+"Mowhawk":"Winter",
+"Nighthawk":"Spring",
+"Osprey":"Winter",
+"Otane":"Spring",
+"Ouyen":"Spring",
+"Pascal":"Spring",
+"Peake":"Spring",
+"Relay":"Winter",
+"Revenue":"Winter",
+"Rockstar":"Spring",
+"Rongotea":"Spring",
+"Rosario":"Spring",
+"Rosella":"Winter",
+"Ruby":"Spring",
+"Savannah":"Winter",
+"Scepter":"Spring",
+"Scout":"Spring",
+"Scythe":"Spring",
+"Sorrial":"Winter",
+"Spear":"Spring",
+"Spitfire":"Spring",
+"Stockade":"Spring",
+"Strzelecki":"Spring",
+"Sunbri":"Spring",
+"Sunmaster":"Spring",
+"Sunstate":"Spring",
+"Suntop":"Spring",
+"Trojan":"Spring",
+"Uom001_3_47":"Winter",
+"Uom001_9_1":"Winter",
+"Ventura":"Spring",
+"Voltron":"Winter",
+"Wakanui":"Winter",
+"Waugh":"Winter",
+"Wedgetail":"Winter",
+"Whistler":"Winter",
+"Wilgoyne":"Spring",
+"Wills":"Spring",
+"Wyalkatchem":"Winter",
+"Wylah":"Winter",
+"Yecora":"Spring",
+"Yitpi":"Spring",
+"Young":"Spring",
+"Zanzibar":"Spring",
+"Zyatt":"Winter",
+}
+
+TestSetMap = {
+'APS14':'TestSet',
+'APS26':'TestSet',
+'APS2':'TestSet',
+'APS6':'TestSet',
+'Cunderdin97':'TestSet',
+'Gatton2009':'TestSet',
+'Gatton2009TOS1CvKelallac':'TestSet',
+'Gatton2009TOS1CvMckellar':'TestSet',
+'Gatton2009TOS2CvKelallac':'TestSet',
+'Gatton2009TOS2CvMckellar':'TestSet',
+'Gatton2009TOS3CvKelallac':'TestSet',
+'Gatton2009TOS3CvMckellar':'TestSet',
+'Gatton2011':'TestSet',
+'Gatton2011TOS2CvEaglehawk':'TestSet',
+'Gatton2014AE':'TestSet',
+'Gatton2014AEV1P1CvBaxter':'TestSet',
+'Gatton2014AEV1P1CvDrysdale':'TestSet',
+'Gatton2014AEV1P1CvHartog':'TestSet',
+'Gatton2014AEV1P1CvWestonia':'TestSet',
+'Gatton2014AEV1P2CvBaxter':'TestSet',
+'Gatton2014AEV1P2CvDrysdale':'TestSet',
+'Gatton2014AEV1P2CvHartog':'TestSet',
+'Gatton2014AEV1P2CvWestonia':'TestSet',
+'Gatton2014AEV2P1CvBaxter':'TestSet',
+'Gatton2014AEV2P1CvDrysdale':'TestSet',
+'Gatton2014AEV2P1CvHartog':'TestSet',
+'Gatton2014AEV2P1CvWestonia':'TestSet',
+'Gatton2014AEV2P2CvBaxter':'TestSet',
+'Gatton2014AEV2P2CvDrysdale':'TestSet',
+'Gatton2014AEV2P2CvHartog':'TestSet',
+'Gatton2014AEV2P2CvWestonia':'TestSet',
+'Gatton2014':'TestSet',
+'Gatton2014TOS11-AprCvBaxter':'TestSet',
+'Gatton2014TOS11-AprCvDrysdale':'TestSet',
+'Gatton2014TOS11-AprCvHartog':'TestSet',
+'Gatton2014TOS11-AprCvWestonia':'TestSet',
+'Gatton2014TOS12-AugCvBaxter':'TestSet',
+'Gatton2014TOS12-AugCvDrysdale':'TestSet',
+'Gatton2014TOS12-AugCvHartog':'TestSet',
+'Gatton2014TOS12-AugCvWestonia':'TestSet',
+'Gatton2014TOS13-MayCvBaxter':'TestSet',
+'Gatton2014TOS13-MayCvDrysdale':'TestSet',
+'Gatton2014TOS13-MayCvHartog':'TestSet',
+'Gatton2014TOS13-MayCvWestonia':'TestSet',
+'Gatton2014TOS16-JulCvBaxter':'TestSet',
+'Gatton2014TOS16-JulCvDrysdale':'TestSet',
+'Gatton2014TOS16-JulCvHartog':'TestSet',
+'Gatton2014TOS16-JulCvWestonia':'TestSet',
+'Gatton94':'TestSet',
+'Gatton94CvBataviaTOS4_Jul':'TestSet',
+'Gatton94CvHartogTOS4_Jul':'TestSet',
+'GattonRowSpacing':'TestSet',
+'Ginninderra1991':'TestSet',
+'Gorgan05':'TestSet',
+'Griffith1983CVYecoraTOS15-Apr':'TestSet',
+'Jamma':'TestSet',
+'Konya09':'TestSet',
+'Konya11':'TestSet',
+'Leeston2013':'TestSet',
+'Leeston2014':'TestSet',
+'Lincoln1991':'TestSet',
+'Lincoln1991Irrig02':'TestSet',
+'Lincoln1991Irrig04':'TestSet',
+'Lincoln1991Irrig09':'TestSet',
+'Lincoln1991Irrig10':'TestSet',
+'Lincoln1991Irrig12':'TestSet',
+'Lincoln1991Irrig13':'TestSet',
+'Lincoln1991Irrig14':'TestSet',
+'Lincoln1992':'TestSet',
+'Lincoln1994':'TestSet',
+'Lincoln2010':'TestSet',
+'Lincoln2014':'TestSet',
+'Lincoln2015':'TestSet',
+'Lincoln2021':'TestSet',
+'Lincoln2023':'TestSet',
+'Lincoln2024':'TestSet',
+'Linconln2015Nit0IrrFull':'TestSet',
+'Linconln2015Nit0IrrNil':'TestSet',
+'Linconln2015Nit250IrrFull':'TestSet',
+'Linconln2015Nit250IrrNil':'TestSet',
+'Linconln2015Nit50IrrFull':'TestSet',
+'Linconln2015Nit50IrrNil':'TestSet',
+'Lonzee04':'TestSet',
+'Lonzee06':'TestSet',
+'Lonzee08':'TestSet',
+'MaricopaFACE92_93':'TestSet',
+'MaricopaFACE93_94':'TestSet',
+'MaricopaFACE95_96':'TestSet',
+'MaricopaFACE96_97':'TestSet',
+'Mer73':'TestSet',
+'Mer86':'TestSet',
+'Mouse':'TestSet',
+'PalmerstonNorth1989':'TestSet',
+'TraitMod2015':'TestSet',
+'TraitMod2016':'TestSet',
+'Wagga1991':'TestSet',
+'Wagga2013':'TestSet',
+'Wagga2014':'TestSet',
+'Wakanui2015':'TestSet',
+'Wakanui2016':'TestSet',
+'Wakanui2017':'TestSet',
+'Wheat_Beverley90_Early':'TestSet',
+'Wheat_Beverley90_Late':'TestSet',
+'Wheat_Beverley90_n15':'TestSet',
+'Wheat_Beverley90_n30':'TestSet',
+'Wheat_Beverley90_n60':'TestSet',
+'Wheat_Corrigin_10mmBasal':'TestSet',
+'Wheat_Corrigin_10mmBasalTopDress':'TestSet',
+'Wheat_Corrigin_40mmBasal':'TestSet',
+'Wheat_Corrigin_40mmBasalTopDress':'TestSet',
+'Wheat_Corrigin_DryBasal':'TestSet',
+'Wheat_Corrigin_DryBasalTopDress':'TestSet',
+'Wheat_Moora94_N0':'TestSet',
+'Wheat_Moora94_N50':'TestSet',
+'Wheat_Moora95_N0':'TestSet',
+'Wheat_Moora95_N80':'TestSet',
+'Wheat_Wongan83_Single':'TestSet',
+'Wheat_Wongan84_N000':'TestSet',
+'Wheat_Wongan84_N050':'TestSet',
+'Wheat_Wongan84_N300':'TestSet',
+'Wheat_Wongan84_N325':'TestSet',
+'Wongan83':'TestSet',
+'YarrabahCreek':'TestSet',
+'Yucheng02':'TestSet',
+'Yucheng03':'TestSet',
+'Yucheng04':'TestSet',
+'AGR ESW W23-01':'FAR',
+'AGR ESW W23-01TOS1CvLancer':'FAR',
+'AGR ESW W23-01TOS1CvLongsword':'FAR',
+'AGR ESW W23-01TOS1CvRaider':'FAR',
+'AGR ESW W23-01TOS1CvSunmaster':'FAR',
+'AGR ESW W23-01TOS1CvVixen':'FAR',
+'AGR ESW W23-01TOS2CvLancer':'FAR',
+'AGR ESW W23-01TOS2CvLongsword':'FAR',
+'AGR ESW W23-01TOS2CvRaider':'FAR',
+'AGR ESW W23-01TOS2CvSunmaster':'FAR',
+'AGR ESW W23-01TOS2CvVixen':'FAR',
+'FAR DMC W20-03':'FAR',
+'FAR DMC W20-03MgmtGrazedCvTabasco':'FAR',
+'FAR DMC W20-03MgmtHigh InputCvTabasco':'FAR',
+'FAR DMC W20-03MgmtStandardCvTabasco':'FAR',
+'FAR DMC W20-05':'FAR',
+'FAR DMC W20-06':'FAR',
+'FAR ESW W23-02':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed180CvLongsword':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed180CvRaider':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed30CvLongsword':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed30CvRaider':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed90CvLongsword':'FAR',
+'FAR ESW W23-02GrazeGrazeSeed90CvRaider':'FAR',
+'FAR ESW W23-02GrazeNoneSeed180CvLongsword':'FAR',
+'FAR ESW W23-02GrazeNoneSeed180CvRaider':'FAR',
+'FAR ESW W23-02GrazeNoneSeed30CvLongsword':'FAR',
+'FAR ESW W23-02GrazeNoneSeed30CvRaider':'FAR',
+'FAR ESW W23-02GrazeNoneSeed90CvLongsword':'FAR',
+'FAR ESW W23-02GrazeNoneSeed90CvRaider':'FAR',
+'FAR HYC W17-01-1':'FAR',
+'FAR HYC W17-01-1MgmtGrazedCvConqueror':'FAR',
+'FAR HYC W17-01-1MgmtGrazedCvGenius':'FAR',
+'FAR HYC W17-01-1MgmtHigh InputCvConqueror':'FAR',
+'FAR HYC W17-01-1MgmtHigh InputCvGenius':'FAR',
+'FAR HYC W17-01-1MgmtStandardCvConqueror':'FAR',
+'FAR HYC W17-01-1MgmtStandardCvGenius':'FAR',
+'FAR HYC W17-01-2MgmtHigh InputCvADV11.9419':'FAR',
+'FAR HYC W17-01-2MgmtHigh InputCvAGTW0001':'FAR',
+'FAR HYC W17-01-2MgmtHigh InputCvAGTW0002':'FAR',
+'FAR HYC W17-01-2':'FAR',
+'FAR HYC W17-01-2MgmtHigh InputCvConqueror':'FAR',
+'FAR HYC W17-01-2MgmtHigh InputCvGenius':'FAR',
+'FAR HYC W17-01-2MgmtStandardCvADV11.9419':'FAR',
+'FAR HYC W17-01-2MgmtStandardCvAGTW0001':'FAR',
+'FAR HYC W17-01-2MgmtStandardCvAGTW0002':'FAR',
+'FAR HYC W17-01-2MgmtStandardCvConqueror':'FAR',
+'FAR HYC W17-01-2MgmtStandardCvGenius':'FAR',
+'FAR HYC W17-02-1CvAGTW0001':'FAR',
+'FAR HYC W17-02-1':'FAR',
+'FAR HYC W17-02-1CvAsano':'FAR',
+'FAR HYC W17-02-1CvBA 26.35':'FAR',
+'FAR HYC W17-02-1CvConqueror':'FAR',
+'FAR HYC W17-02-1CvCordiale':'FAR',
+'FAR HYC W17-02-1CvGenius':'FAR',
+'FAR HYC W17-02-1CvHereford':'FAR',
+'FAR HYC W17-02-1CvMercedes':'FAR',
+'FAR HYC W17-02-1CvOakley':'FAR',
+'FAR HYC W17-02-1CvViscount':'FAR',
+'FAR HYC W17-02-1CvXi19':'FAR',
+'FAR HYC W17-02-2CvADV14.1292':'FAR',
+'FAR HYC W17-02-2CvADV14.1335':'FAR',
+'FAR HYC W17-02-2':'FAR',
+'FAR HYC W17-02-2CvApache':'FAR',
+'FAR HYC W17-02-2CvAsano':'FAR',
+'FAR HYC W17-02-2CvBA 26.35':'FAR',
+'FAR HYC W17-02-2CvCS170':'FAR',
+'FAR HYC W17-02-2CvCS3250.30':'FAR',
+'FAR HYC W17-02-2CvCS611':'FAR',
+'FAR HYC W17-02-2CvCS98152.79':'FAR',
+'FAR HYC W17-02-2CvCSQ496.88':'FAR',
+'FAR HYC W17-02-2CvCSR65':'FAR',
+'FAR HYC W17-02-2CvCordiale':'FAR',
+'FAR HYC W17-02-2CvEDGE W12-090-04':'FAR',
+'FAR HYC W17-02-2CvEDGE06-018b-10':'FAR',
+'FAR HYC W17-02-2CvHereford':'FAR',
+'FAR HYC W17-02-2CvKowari (Trit)':'FAR',
+'FAR HYC W17-02-2CvOakley':'FAR',
+'FAR HYC W17-02-2CvSolist':'FAR',
+'FAR HYC W17-02-2CvTabasco':'FAR',
+'FAR HYC W17-02-2CvTuareg':'FAR',
+'FAR HYC W17-02-2CvViscount':'FAR',
+'FAR HYC W17-02-2CvXi19':'FAR',
+'FAR HYC W17-08':'FAR',
+'FAR HYC W18-02-1':'FAR',
+'FAR HYC W18-02-2':'FAR',
+'FAR HYC W18-02-2Seeds100CvBennett':'FAR',
+'FAR HYC W18-02-2Seeds175CvBennett':'FAR',
+'FAR HYC W18-02-2Seeds250CvBennett':'FAR',
+'FAR HYC W18-02-2a':'FAR',
+'FAR HYC W18-08-1':'FAR',
+'FAR HYC W19-01-1':'FAR',
+'FAR HYC W19-01-1FungicideFullCvConqueror':'FAR',
+'FAR HYC W19-01-1FungicideFullCvGenius':'FAR',
+'FAR HYC W19-01-1FungicideFullCvTabasco':'FAR',
+'FAR HYC W19-01-1FungicideNoneCvConqueror':'FAR',
+'FAR HYC W19-01-1FungicideNoneCvGenius':'FAR',
+'FAR HYC W19-01-1FungicideNoneCvTabasco':'FAR',
+'FAR HYC W19-02-1':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30 40NSeeds100CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30 40NSeeds175CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30 40NSeeds250CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30Seeds100CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30Seeds175CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16 30Seeds250CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16Seeds100CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16Seeds175CvBennett':'FAR',
+'FAR HYC W19-03-1GrazedGS16Seeds250CvBennett':'FAR',
+'FAR HYC W19-06-1':'FAR',
+'FAR HYC W19-08-1':'FAR',
+'FAR NEV FRO WB23-01':'FAR',
+'FAR NEV FRO WB23-01Def1TOS1CvVixen':'FAR',
+'FAR NEV FRO WB23-01Def1TOS2CvVixen':'FAR',
+'FAR NEV FRO WB23-01Def2TOS1CvVixen':'FAR',
+'FAR NEV FRO WB23-01Def2TOS2CvVixen':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS1CvDenison':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS1CvVixen':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS2CvDenison':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS2CvVixen':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS3CvDenison':'FAR',
+'FAR NEV FRO WB23-01DefControlTOS3CvVixen':'FAR',
+'FAR NSW W23-03MgmtHigh InputCvAGTW0005':'FAR',
+'FAR NSW W23-03':'FAR',
+'FAR NSW W23-03MgmtHigh InputCvLongford':'FAR',
+'FAR NSW W23-03MgmtLow InputCvAGTW0005':'FAR',
+'FAR NSW W23-03MgmtLow InputCvLongford':'FAR',
+'FAR NSW W23-03MgmtStrategicCvAGTW0005':'FAR',
+'FAR NSW W23-03MgmtStrategicCvLongford':'FAR',
+'FAR NSW W23-03MgmtTacticalCvAGTW0005':'FAR',
+'FAR NSW W23-03MgmtTacticalCvLongford':'FAR',
+'FAR NSW W23-05':'FAR',
+'FAR RRC W20-03':'FAR',
+'FAR RRC W20-03MgmtGrazedCvBeckom':'FAR',
+'FAR RRC W20-03MgmtGrazedCvGregory':'FAR',
+'FAR RRC W20-03MgmtHigh InputCvBeckom':'FAR',
+'FAR RRC W20-03MgmtHigh InputCvGregory':'FAR',
+'FAR RRC W20-03MgmtStandardCvBeckom':'FAR',
+'FAR RRC W20-03MgmtStandardCvGregory':'FAR',
+'FAR RRC W20-05':'FAR',
+'FAR RRC W20-06-1':'FAR',
+'FAR RRC W21-01CvAGFWH004418':'FAR',
+'FAR RRC W21-01CvAGFWH004618':'FAR',
+'FAR RRC W21-01':'FAR',
+'FAR RRC W21-01CvAurora':'FAR',
+'FAR RRC W21-01CvBeckom':'FAR',
+'FAR RRC W21-01CvBitalli':'FAR',
+'FAR RRC W21-01CvCoota':'FAR',
+'FAR RRC W21-01CvGraham':'FAR',
+'FAR RRC W21-01CvL13070-027':'FAR',
+'FAR RRC W21-01CvLPB16-0582':'FAR',
+'FAR RRC W21-01CvLPB17-5691':'FAR',
+'FAR RRC W21-01CvLongford':'FAR',
+'FAR RRC W21-01CvReflection':'FAR',
+'FAR RRC W21-01CvSUN1087I':'FAR',
+'FAR RRC W21-01CvSavello':'FAR',
+'FAR RRC W21-01CvShabras':'FAR',
+'FAR RRC W21-01CvTabasco':'FAR',
+'FAR RRC W21-01CvV11068-085-047':'FAR',
+'FAR RRC W21-01CvV12167-048':'FAR',
+'FAR RRC W21-01CvWestcourt':'FAR',
+'FAR RRC W21-03':'FAR',
+'FAR RRC W21-06':'FAR',
+'FAR RRC W21-07':'FAR',
+'FAR RRC W22-02FungicideFullCvAGTW0005':'FAR',
+'FAR RRC W22-02':'FAR',
+'FAR RRC W22-02FungicideFullCvLongford':'FAR',
+'FAR RRC W22-02FungicideFullCvReflection':'FAR',
+'FAR RRC W22-02FungicideFullCvTabasco':'FAR',
+'FAR RRC W22-02FungicideNoneCvAGTW0005':'FAR',
+'FAR RRC W22-02FungicideNoneCvLongford':'FAR',
+'FAR RRC W22-02FungicideNoneCvReflection':'FAR',
+'FAR RRC W22-03':'FAR',
+'FAR RRC W22-05-1':'FAR',
+'FAR SAC W18-01MgmtGrazedCvAGTW0002':'FAR',
+'FAR SAC W18-01':'FAR',
+'FAR SAC W18-01MgmtGrazedCvConqueror':'FAR',
+'FAR SAC W18-01MgmtHigh InputCvAGTW0002':'FAR',
+'FAR SAC W18-01MgmtHigh InputCvConqueror':'FAR',
+'FAR SAC W18-01MgmtStandardCvAGTW0002':'FAR',
+'FAR SAC W18-01MgmtStandardCvConqueror':'FAR',
+'FAR SAC W18-02':'FAR',
+'FAR SAC W18-02FungicideNoneCvAdagio':'FAR',
+'FAR SAC W18-02FungicideNoneCvAsano':'FAR',
+'FAR SAC W18-02FungicideNoneCvCoolah':'FAR',
+'FAR SAC W18-02FungicideNoneCvGenius':'FAR',
+'FAR SAC W18-02FungicideNoneCvHereford':'FAR',
+'FAR SAC W18-02FungicidePlusCvAdagio':'FAR',
+'FAR SAC W18-02FungicidePlusCvAsano':'FAR',
+'FAR SAC W18-02FungicidePlusCvCoolah':'FAR',
+'FAR SAC W18-02FungicidePlusCvGenius':'FAR',
+'FAR SAC W18-02FungicidePlusCvHereford':'FAR',
+'FAR SAC W18-06':'FAR',
+'FAR SAC W19-01':'FAR',
+'FAR SAC W19-01MgmtGrazedCvConqueror':'FAR',
+'FAR SAC W19-01MgmtGrazedCvTabasco':'FAR',
+'FAR SAC W19-01MgmtHigh InputCvConqueror':'FAR',
+'FAR SAC W19-01MgmtHigh InputCvTabasco':'FAR',
+'FAR SAC W19-01MgmtStandardCvConqueror':'FAR',
+'FAR SAC W19-01MgmtStandardCvTabasco':'FAR',
+'FAR SAC W19-02':'FAR',
+'FAR SAC W19-02FungicideFullCvAdagio':'FAR',
+'FAR SAC W19-02FungicideFullCvAsano':'FAR',
+'FAR SAC W19-02FungicideFullCvHereford':'FAR',
+'FAR SAC W19-02FungicideFullCvTabasco':'FAR',
+'FAR SAC W19-02FungicideNoneCvAdagio':'FAR',
+'FAR SAC W19-02FungicideNoneCvAsano':'FAR',
+'FAR SAC W19-02FungicideNoneCvHereford':'FAR',
+'FAR SAC W19-02FungicideNoneCvTabasco':'FAR',
+'FAR SAC W19-06':'FAR',
+'FAR SAC W20-03-1':'FAR',
+'FAR SAC W20-03-1MgmtGrazedCvAdagio':'FAR',
+'FAR SAC W20-03-1MgmtGrazedCvTabasco':'FAR',
+'FAR SAC W20-03-1MgmtHigh InputCvAdagio':'FAR',
+'FAR SAC W20-03-1MgmtHigh InputCvTabasco':'FAR',
+'FAR SAC W20-03-1MgmtStandardCvAdagio':'FAR',
+'FAR SAC W20-03-1MgmtStandardCvTabasco':'FAR',
+'FAR SAC W20-03-2':'FAR',
+'FAR SAC W20-03-2MgmtHigh InputCvCobra':'FAR',
+'FAR SAC W20-03-2MgmtLow InputCvCobra':'FAR',
+'FAR SAC W20-03-2MgmtStandardCvCobra':'FAR',
+'FAR SAC W20-05-1':'FAR',
+'FAR SAC W20-06-1':'FAR',
+'FAR SAC W21-05-1':'FAR',
+'FAR SAC W22-03-1':'FAR',
+'FAR SAC W22-03-2':'FAR',
+'FAR SAC W22-05-1':'FAR',
+'FAR SAC W23-05':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvADV11.9419':'FAR',
+'FAR TAS W16-01-1':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvCS3250.30':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvCS98152.79':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvCSQ496.88':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvConqueror':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvEDGE06-018b-10':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvEDGE06-025-03':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvEDGE06-039-13':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvGenius':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvLPB11-0140':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvV08126-64':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvV10006-026':'FAR',
+'FAR TAS W16-01-1MgmtGrazedCvV10083-050':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvADV11.9419':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvCS3250.30':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvCS98152.79':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvCSQ496.88':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvConqueror':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvEDGE06-018b-10':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvEDGE06-025-03':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvEDGE06-039-13':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvGenius':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvLPB11-0140':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvV08126-64':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvV10006-026':'FAR',
+'FAR TAS W16-01-1MgmtHigh InputCvV10083-050':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvADV11.9419':'FAR',
+'FAR TAS W16-01-2':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvCS3250.30':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvCS98152.79':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvCSQ496.88':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvConqueror':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvEDGE06-018b-10':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvEDGE06-025-03':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvEDGE06-039-13':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvGenius':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvLPB11-0140':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvV08126-64':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvV10006-026':'FAR',
+'FAR TAS W16-01-2MgmtHigh InputCvV10083-050':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvADV11.9419':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvCS3250.30':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvCS98152.79':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvCSQ496.88':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvConqueror':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvEDGE06-018b-10':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvEDGE06-025-03':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvEDGE06-039-13':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvGenius':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvLPB11-0140':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvV08126-64':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvV10006-026':'FAR',
+'FAR TAS W16-01-2MgmtStandardCvV10083-050':'FAR',
+'FAR TAS W16-06':'FAR',
+'FAR TAS W16-06PGRDoubleLateSeeds200CvManning':'FAR',
+'FAR TAS W16-06PGRDoubleMidSeeds200CvManning':'FAR',
+'FAR TAS W16-06PGREarly1Seeds200CvManning':'FAR',
+'FAR TAS W16-06PGREarly2Seeds200CvManning':'FAR',
+'FAR TAS W16-06PGRNoneSeeds100CvManning':'FAR',
+'FAR TAS W16-06PGRNoneSeeds150CvManning':'FAR',
+'FAR TAS W16-06PGRNoneSeeds200CvManning':'FAR',
+'FAR TAS W16-06PGRNoneSeeds50CvManning':'FAR',
+'FAR TAS W16-06PGRSingleLateSeeds200CvManning':'FAR',
+'FAR TAS W16-06PGRSingleMidSeeds200CvManning':'FAR',
+'FAR TAS W16-06PGRTripleEarlySeeds200CvManning':'FAR',
+'FAR TAS W16-06PGRTripleLateSeeds200CvManning':'FAR',
+'FAR TAS W16-08':'FAR',
+'FAR TAS W21-06-1':'FAR',
+'FAR TAS W23-03':'FAR',
+'FAR TAS W23-03MgmtHigh InputCvLongford':'FAR',
+'FAR TAS W23-03MgmtLow InputCvLongford':'FAR',
+'FAR TAS W23-03MgmtStrategicCvLongford':'FAR',
+'FAR TAS W23-03MgmtTacticalCvLongford':'FAR',
+'FAR VIC W22-03-1':'FAR',
+'FAR VIC W22-03-2':'FAR',
+'FAR VIC W22-05-1':'FAR',
+'FAR VIC W23-03a':'FAR',
+'FAR WAA W20-01b':'FAR',
+'FAR WAA W20-01bMgmtGrazedCvLRPB TBC':'FAR',
+'FAR WAA W20-01bMgmtHigh InputCvLRPB TBC':'FAR',
+'FAR WAA W20-01bMgmtStandardCvLRPB TBC':'FAR',
+'FAR WAA W22-01':'FAR',
+'FAR WAA W22-01MgmtGrazedCvDenison':'FAR',
+'FAR WAA W22-01MgmtHigh InputCvDenison':'FAR',
+'FAR WAA W22-01MgmtStandardCvDenison':'FAR',
+'FAR WAA W23-03':'FAR',
+'FAR WAA W23-03MgmtHigh InputCvDenison':'FAR',
+'FAR WAA W23-03MgmtLow InputCvDenison':'FAR',
+'FAR WAA W23-03MgmtStrategicCvDenison':'FAR',
+'FAR WAA W23-03MgmtTacticalCvDenison':'FAR',
+'FAR WAA W23-05':'FAR',
+'FAR WAE W21-05':'FAR',
+'FAR WAE W21-05CvDenison':'FAR',
+'FAR WAE W21-05CvMagenta':'FAR',
+'FAR WAE W21-05CvValiant CL':'FAR',
+'FAR WAE W22-01':'FAR',
+'FAR WAE W22-02':'FAR',
+'FAR WAE W22-02MgmtGrazedCvDenison':'FAR',
+'FAR WAE W22-02MgmtHigh InputCvDenison':'FAR',
+'FAR WAE W22-02MgmtStandardCvDenison':'FAR',
+'FAR WAE W22-03':'FAR',
+'FAR WAE W22-03CvLTU001-038':'FAR',
+'FAR WAE W22-03CvLTU001-039':'FAR',
+'FAR WAE W22-03CvLTU001-066':'FAR',
+'FAR WAE W22-03CvLTU001-092':'FAR',
+'FAR WAE W22-03CvLTU002-18-01':'FAR',
+'FAR WAE W22-04':'FAR',
+'FAR WAE W22-04CvDenison':'FAR',
+'FAR WAE W22-04CvDevil':'FAR',
+'FAR WAE W22-04CvSting':'FAR',
+'FAR WAE W22-04CvVixen':'FAR',
+'FAR WAG W22-01':'FAR',
+'FAR WAG W22-01CvCoota':'FAR',
+'FAR WAG W22-01CvLongsword':'FAR',
+'FAR WAG W22-01CvSunflex':'FAR',
+'FAR WAG W22-01CvV12167-048':'FAR',
+'FAR WAG W22-01CvValiant':'FAR',
+'FAR WAG W22-03CvBoree':'FAR',
+'FAR WAG W22-03CvCoota':'FAR',
+'FAR WAG W22-03CvDS Bennett':'FAR',
+'FAR WAG W22-03':'FAR',
+'FAR WAG W22-03CvLongsword':'FAR',
+'FAR WAG W22-03CvRGT Accroc':'FAR',
+'FAR WAG W22-03CvRocksta':'FAR',
+'FAR WAG W22-03CvSunflex':'FAR',
+'FAR WAG W22-03CvV12167-048':'FAR',
+'FAR WAG W22-03CvValiant':'FAR',
+'FAR WAG W22-03CvVixen':'FAR',
+'Pask LC07':'WWHI',
+'Pask TT06':'WWHI',
+'Pask TT07':'WWHI',
+'Gatton2014CV29B':'GxExM',
+'Gatton2014CV5A':'GxExM',
+'Gatton2014CV60A':'GxExM',
+'Gatton2014CVEspada':'GxExM',
+'Gatton2014CVGauntlet':'GxExM',
+'Gatton2014CVScout':'GxExM',
+'Gatton2014CVSpitfire':'GxExM',
+'Gatton2014CVSunbee':'GxExM',
+'Gatton2014CVSunstate':'GxExM',
+'Gatton2014IrrigatedCV29B':'GxExM',
+'Gatton2014IrrigatedCV5A':'GxExM',
+'Gatton2014IrrigatedCV60A':'GxExM',
+'Gatton2014IrrigatedCVEspada':'GxExM',
+'Gatton2014IrrigatedCVGauntlet':'GxExM',
+'Gatton2014IrrigatedCVScout':'GxExM',
+'Gatton2014IrrigatedCVSpitfire':'GxExM',
+'Gatton2014IrrigatedCVSunbee':'GxExM',
+'Gatton2014IrrigatedCVSunstate':'GxExM',
+'Gatton2014Irrigated':'GxExM',
+'Gatton2015CV29B':'GxExM',
+'Gatton2015CV5A':'GxExM',
+'Gatton2015CV60A':'GxExM',
+'Gatton2015CVEspada':'GxExM',
+'Gatton2015CVGaunlet':'GxExM',
+'Gatton2015CVGauntlet':'GxExM',
+'Gatton2015CVScout':'GxExM',
+'Gatton2015CVSpitfire':'GxExM',
+'Gatton2015CVSunbee':'GxExM',
+'Gatton2015CVSunstate':'GxExM',
+'Gatton2015':'GxExM',
+'Junee2014CV29B':'GxExM',
+'Junee2014CV5A':'GxExM',
+'Junee2014CV60A':'GxExM',
+'Junee2014CVEspada':'GxExM',
+'Junee2014CVGauntlet':'GxExM',
+'Junee2014CVScout':'GxExM',
+'Junee2014CVSpitfire':'GxExM',
+'Junee2014CVSunbee':'GxExM',
+'Junee2014CVSunstate':'GxExM',
+'Junee2014':'GxExM',
+'Minnipa2014CV29B':'GxExM',
+'Minnipa2014CV5A':'GxExM',
+'Minnipa2014CV60A':'GxExM',
+'Minnipa2014CVEspada':'GxExM',
+'Minnipa2014CVGauntlet':'GxExM',
+'Minnipa2014CVScout':'GxExM',
+'Minnipa2014CVSpitfire':'GxExM',
+'Minnipa2014CVSunbee':'GxExM',
+'Minnipa2014CVSunstate':'GxExM',
+'Minnipa2014':'GxExM',
+'Minnipa2015CV29B':'GxExM',
+'Minnipa2015CV5A':'GxExM',
+'Minnipa2015CV60A':'GxExM',
+'Minnipa2015CVEspada':'GxExM',
+'Minnipa2015CVGauntlet':'GxExM',
+'Minnipa2015CVScout':'GxExM',
+'Minnipa2015CVSpitfire':'GxExM',
+'Minnipa2015CVSunbee':'GxExM',
+'Minnipa2015CVSunstate':'GxExM',
+'Minnipa2015':'GxExM',
+'Temora2015CV29B':'GxExM',
+'Temora2015CV5A':'GxExM',
+'Temora2015CV60A':'GxExM',
+'Temora2015CVEspada':'GxExM',
+'Temora2015CVGauntlet':'GxExM',
+'Temora2015CVScout':'GxExM',
+'Temora2015CVSpitfire':'GxExM',
+'Temora2015CVSunbee':'GxExM',
+'Temora2015CVSunstate':'GxExM',
+'Temora2015':'GxExM',
+'DookieEVA2024':'WWHI',
+'DookieWWHI2024':'WWHI',
+'DookieEVA2025':'WWHI',
+'DookieWWHI2025':'WWHI',
+'WaggaWagga2024':'WWHI',
+'WaggaWagga2025':'WWHI',
+'Gnarwarre2024':'WWHI',
+'Gnarwarre2025':'WWHI',
+'GrassPatch2024':'WWHI',
+'GrassPatch2025':'WWHI',
+'Fords2025':'WWHI',
+'Turretfield2024':'WWHI',
+'Turretfield2024CvKittyhawkSow15-May':'WWHI',
+'Turretfield2024CvScepterSow16-Apr':'WWHI',
+}
+
+DevCols = {"Spring":"Orange",
+           "Winter":"Blue"}
+
+TestSetAlphas = {"WWHI":1.0,
+                 "GxExM":0.4,
+                 "TestSet":0.1,
+                 "FAR":0.1}
+
+TestSetMarkers = {"WWHI":'s',
+                 "GxExM":'o',
+                 "TestSet":'^',
+                 "FAR":'v'}
+
+TestSetSizes = {"WWHI":10,
+                 "GxExM":50,
+                 "TestSet":100,
+                 "FAR":200}
+
+plot_order = {
+    'FAR': 0,
+    'TestSet': 1,
+    'GxExM': 2,
+    'WWHI': 3
+}
+
+
+# %% [markdown]
+# ## Graphing functions
+
+# %%
+def add_plot_legend(ax=None):
+
+    if ax is None:
+        ax = plt.gca()
+
+    dev_handles = [
+        Line2D([0], [0],
+               marker='o',
+               linestyle='None',
+               color=colour,
+               markersize=8,
+               label=dev)
+        for dev, colour in DevCols.items()
+    ]
+
+    test_handles = [
+        Line2D([0], [0],
+               marker=TestSetMarkers[test],
+               linestyle='None',
+               color='black',
+               alpha=TestSetAlphas[test],
+               markersize=8,
+               label=test)
+        for test in TestSetMarkers
+    ]
+
+    leg1 = ax.legend(
+        handles=dev_handles,
+        title="Development",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.00)
+    )
+
+    ax.add_artist(leg1)
+
+    ax.legend(
+        handles=test_handles,
+        title="Test Set",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 0.65)
+    )
+
+    plt.subplots_adjust(right=0.8)
+
+
+# %%
+def plotxy(experiments,xvar,yvar,data,addLeg = True,ncols=np.nan,cult_cols=False):
+
+    fig, ax = plt.subplots()
     cpos=1
     mpos=1
+    experiments = experiments.sort_values(key=lambda s: s.map(lambda e: plot_order[TestSetMap[e]]))
     for e in experiments:
         plotData = data.loc[data.Experiment==e,:]
         xdata = pd.to_numeric(plotData.loc[:,xvar])
         ydata = pd.to_numeric(plotData.loc[:,yvar])
-        plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=e)
-        cpos+=1
-        mpos+=1
-        if mpos>16:
-            mpos=1
-        if cpos>28:
-            cpos=1
+        if cult_cols==False:
+            plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=e)
+            cpos+=1
+            mpos+=1
+            if mpos>16:
+                mpos=1
+            if cpos>28:
+                cpos=1
+        else:
+            cultivars =  plotData.loc[:,"Wheat.SowingData.Cultivar"]
+            colors = cultivars.map(lambda c: DevCols[DevMap[c]])
+            e_marker = TestSetMarkers[TestSetMap[e]]
+            e_alpha = TestSetAlphas[TestSetMap[e]]
+            e_size = TestSetSizes[TestSetMap[e]]
+            plt.scatter(xdata,ydata,c=colors, marker=e_marker,alpha = e_alpha,s = e_size)
+            add_plot_legend(ax)
+            addLeg = False
     if addLeg == True:
         if np.isnan(ncols):
              ncols = np.ceil(experiments.size/17)
@@ -115,15 +889,26 @@ def plotxy(experiments,xvar,yvar,data,addLeg = True,ncols=np.nan):
     plt.xlabel(xvar)
 
 
+# %% [markdown]
+# # Read Data
+
 # %%
 MasterfilePaths = [r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
-                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Dookie2024\Dookie2024_master.db']
-
-# %% [markdown]
-# # Read Data
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2025_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\WaggaWagga2024_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\WaggaWagga2025_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2024_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2025_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2024_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2025_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Fords2025_master.db',
+                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Turretfield2024_master.db']
 
 # %%
 allSimulations = {}
@@ -150,7 +935,6 @@ SensibilityFolders = ['CO2AndTranspirationEfficiency',
 allHarvestPred = {}
 for filePath in MasterfilePaths:
     fileName = filePath.split('\\')[-1].split('.')[0].replace('_master','')
-    print(fileName)
     con = sqlite3.connect(filePath)
     HarvestPred = pd.read_sql("Select * from HarvestReport",con).dropna(axis=1,how='all')
     con.close()
@@ -175,6 +959,19 @@ for filePath in MasterfilePaths:
     allHarvestPred[fileName] = HarvestPred
 HarvestPred = pd.concat(allHarvestPred.values(),keys=allHarvestPred.keys(),names=['File','SimulationName','Clock.Today'])
 HarvestPred.loc[:,'File'] = HarvestPred.index.get_level_values(0)
+
+# %%
+# fill missing experiment values with simulation name
+sim_names = pd.Series(
+    HarvestPred.index.get_level_values("SimulationName"),
+    index=HarvestPred.index
+)
+
+HarvestPred["Experiment"] = (
+    HarvestPred["Experiment"]
+    .replace(r"^\s*$", pd.NA, regex=True)
+    .fillna(sim_names)
+)
 
 # %%
 Experiments = list(HarvestPred.loc[:,'Experiment'].drop_duplicates().values)
@@ -273,8 +1070,6 @@ MasterIndexVars = ['Clock.Today',
 'Wheat.DaysAfterSowing',
 'Wheat.Phenology.AccumulatedTT',
 'Wheat.Phenology.PTQ',
-#'Wheat.Phenology.CurrentPhaseName',
-#'Wheat.Phenology.CurrentStageName',
 'Wheat.Phenology.Stage']
 
 for iv in MasterIndexVars:
@@ -288,7 +1083,7 @@ for iv in MetVars:
 MasterIndexVarsHarv = ['SimulationID','SimulationName']
 
 for iv in MasterIndexVarsHarv:
-    Observed.loc[:,iv] = HarvestPred.reindex(Observed.index).loc[:,iv]  
+    Observed[iv] = HarvestPred.reindex(Observed.index).loc[:,iv]  
 
 
 def setvar(x):
@@ -308,6 +1103,19 @@ for x in Observed.index:
 
 Observed.sort_index(inplace=True)
 Observed.sort_index(inplace=True,axis=1)
+
+# %%
+# fill missing experiment values with simulation name
+sim_names = pd.Series(
+    Observed.index.get_level_values("SimulationName"),
+    index=Observed.index
+)
+
+Observed["Experiment"] = (
+    Observed["Experiment"]
+    .replace(r"^\s*$", pd.NA, regex=True)
+    .fillna(sim_names)
+)
 
 # %%
 #Make data frame with factor information for each simulation
@@ -423,8 +1231,18 @@ Observed.loc[:,[a,b,c]] = [FillDataGap(Observed.iloc[x,:][[a,b,c]]) for x in ran
 # %% [markdown]
 # # Partitioning analysis
 
+# %% [markdown]
+# ### Spike Wt
+
 # %%
 Observed.loc[:,'Spike/Stem'] = Observed.loc[:,'Wheat.Spike.Wt']/Observed.loc[:,'Wheat.Stem.Wt']
+xvar,yvar = 'Wheat.Phenology.Stage','Spike/Stem'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+plt.plot([5.8,6.0,7.0,8.0,11.0],
+         [0.0,.02,.35,.45,.45],'-')
+
+# %%
 xvar,yvar = 'Wheat.Phenology.Stage','Spike/Stem'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed)
@@ -435,14 +1253,36 @@ plt.plot([5.8,6.0,7.0,8.0,11.0],
 Observed.loc[:,'Wheat.Spike.WtProportion'] = Observed.loc[:,'Wheat.Spike.Wt']/Observed.loc[:,'Wheat.AboveGround.Wt']
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Spike.WtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
-plotxy(experiments,xvar,yvar,Observed)
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 plt.plot([3.0,5.5, 6,7.0,8.0],
          [0,0,0.04,.22,.22],'-')
 plt.plot([3.0,5.5, 6,7.0,8.0],
          np.multiply([0,0,0.04,.22,.22],0.75),'-')
 
 # %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Spike.WtProportion'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed)
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         [0,0,0.04,.22,.22],'-')
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         np.multiply([0,0,0.04,.22,.22],0.75),'-')
+
+# %% [markdown]
+# ### Stem wt
+
+# %%
 Observed.loc[:,'Wheat.Stem.WtProportion'] = Observed.loc[:,'Wheat.Stem.Wt']/Observed.loc[:,'Wheat.AboveGround.Wt']
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Stem.WtProportion'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+plt.plot([3.0,5.0, 6.0,8.0],
+         [0.0,0.36,.7,.7],'-')
+plt.plot([3.0,5.0, 6.0,8.0],
+         np.multiply([0.0,0.36,.7,.7],0.6),'-')
+plt.ylim(0,.9)
+
+# %%
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Stem.WtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed)
@@ -459,7 +1299,17 @@ power = 1
 ys = [const * np.power(x,power) for x in xs]
 
 # %%
-#Observed.loc[:,'Wheat.Stem.WtProportion'] = Observed.loc[:,'Wheat.Stem.Wt']/Observed.loc[:,'Wheat.AboveGroundLive.Wt']
+xvar,yvar = 'Wheat.AboveGround.Wt','Wheat.Stem.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed.loc[Observed.loc[:,"Wheat.Phenology.Stage"]<8.5,:],cult_cols=True)
+xs = range(0,2500,10)
+const = .3
+power = 1.1
+ys = [const * np.power(x,power) for x in xs]
+plt.plot(xs,ys,'-')
+
+
+# %%
 xvar,yvar = 'Wheat.AboveGround.Wt','Wheat.Stem.Wt'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed.loc[Observed.loc[:,"Wheat.Phenology.Stage"]<8.5,:])
@@ -470,11 +1320,14 @@ ys = [const * np.power(x,power) for x in xs]
 plt.plot(xs,ys,'-')
 
 
+# %% [markdown]
+# ### Leaf Wt
+
 # %%
 Observed.loc[:,'Wheat.Leaf.LiveWtProportion'] = Observed.loc[:,'Wheat.Leaf.Live.Wt']/Observed.loc[:,'Wheat.AboveGroundLive.Wt']
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.LiveWtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
-plotxy(experiments,xvar,yvar,Observed)
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 plt.plot([3.0,4.0,5.0,6.0,8.0],
          [1,.9,.7,.3,.15],'-')
 plt.ylim(0,1)
@@ -483,16 +1336,53 @@ plt.ylim(0,1)
 Observed.loc[:,'Wheat.Leaf.DeadWtProportion'] = Observed.loc[:,'Wheat.Leaf.Dead.Wt']/Observed.loc[:,'Wheat.AboveGround.Wt']
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.DeadWtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
-plotxy(experiments,xvar,yvar,Observed)
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 
 # %%
 Observed.loc[:,'Wheat.Ear.WtProportion'] = Observed.loc[:,'Wheat.Ear.Wt']/Observed.loc[:,'Wheat.AboveGround.Wt']
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Ear.WtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
-plotxy(experiments,xvar,yvar,Observed)
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 plt.plot([3.0,5.8,7.0,8.0,9.0,10,11],
          [0,0,.15,.2,.25,0.6,0.6],'-')
 
+
+# %%
+xvar,yvar = 'Wheat.Phenology.AccumulatedTT','Wheat.Leaf.Dead.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+
+# %%
+xvar,yvar = 'Wheat.Phenology.AccumulatedTT','Wheat.Leaf.Live.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+
+# %%
+xvar,yvar = 'Wheat.Phenology.AccumulatedTT','Wheat.Leaf.Live.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed)
+
+# %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.Live.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+
+# %%
+
+# %%
+experiments
+
+# %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.Live.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates().values
+for e in experiments:
+    cvs = Observed.loc[Observed.Experiment == e,'Wheat.SowingData.Cultivar'].drop_duplicates().values
+    print(e)
+    for c in cvs:
+        print("  " + DevMap[c] + " " + c)
+
+# %%
+Observed.loc[Observed.Experiment == e,'Wheat.SowingData.Cultivar'].drop_duplicates().values
 
 # %% [markdown]
 # # Specific Leaf Area
@@ -618,10 +1508,10 @@ for e in SLAExperiments:
 # %%
 vars = ['Wheat.Leaf.StemNumberPerPlant','Wheat.Phenology.Stage']+['Experiment']
 data = Observed.loc[:,vars].dropna()
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
-for e in Experiments:
+for e in experiments:
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemNumberPerPlant'],Markers[mpos],color=Colors[cpos],label=e)
     cpos+=1
@@ -635,10 +1525,10 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemNumberPerPlant','Wheat.Phenology.Stage']+['Experiment']
 data = Observed.loc[:,vars].dropna()
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
-for e in Experiments:
+for e in experiments:
     exData = data.loc[data.Experiment == e,:]
     sims = exData.index.get_level_values(0).drop_duplicates()
     spos = 0
@@ -660,10 +1550,10 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage']+['Experiment']
 data = Observed.loc[:,vars].dropna()
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
-for e in Experiments:
+for e in experiments:
     exData = data.loc[data.Experiment == e,:]
     sims = exData.index.get_level_values(0).drop_duplicates()
     spos = 0
@@ -685,10 +1575,10 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage']+['Experiment']
 data = Observed.loc[:,vars].dropna()
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
-for e in Experiments:
+for e in experiments:
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemPopulation'],Markers[mpos],color=Colors[cpos],label=e)
     cpos+=1
@@ -702,13 +1592,13 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
 data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
 pos=1
 graph = plt.figure(figsize=(10,20))
-for e in Experiments:
-    ax = graph.add_subplot(21,3,pos)
+for e in experiments:
+    ax = graph.add_subplot(33,3,pos)
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemNumberPerPlant'],Markers[mpos],color=Colors[cpos],label=e)
     plt.text(0.95,0.95,e,transform = ax.transAxes,horizontalalignment='right', verticalalignment='top')
@@ -725,13 +1615,13 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
 data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
 pos=1
 graph = plt.figure(figsize=(10,20))
-for e in Experiments:
-    ax = graph.add_subplot(21,3,pos)
+for e in experiments:
+    ax = graph.add_subplot(33,3,pos)
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemPopulation'],Markers[mpos],color=Colors[cpos],label=e)
     plt.text(0.95,0.95,e,transform = ax.transAxes,horizontalalignment='right', verticalalignment='top')
@@ -748,13 +1638,13 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
 data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
-Experiments = data.Experiment.drop_duplicates()
+experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
 pos=1
 graph = plt.figure(figsize=(10,20))
-for e in Experiments:
-    ax = graph.add_subplot(21,3,pos)
+for e in experiments:
+    ax = graph.add_subplot(33,3,pos)
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Population'],Markers[mpos],color=Colors[cpos],label=e)
     plt.text(0.95,0.95,e,transform = ax.transAxes,horizontalalignment='right', verticalalignment='top')
@@ -805,10 +1695,10 @@ plt.xlabel('Wheat.population (plants/m2)')
 plt.ylim(0,1000)
 
 # %%
-Experiments = list(MeanStemData.loc[:,'Experiment'].drop_duplicates())
+experiments = list(MeanStemData.loc[:,'Experiment'].drop_duplicates())
 cpos=1
 mpos=1
-for e in Experiments:
+for e in experiments:
     plotData = MeanStemData.loc[MeanStemData.Experiment==e,:]
     plt.plot(plotData.loc[:,'MeanStemWt'],plotData.loc[:,'Wheat.Leaf.StemNumberPerPlant'],Markers[mpos],color=Colors[cpos],label=e)
     cpos+=1
@@ -967,7 +1857,7 @@ vars = ['Wheat.Stem.Wt','Wheat.Phenology.Stage']+['Experiment']
 data = Observed.loc[:,vars].dropna(how='all')
 pos=1
 graph = plt.figure(figsize=(10,40))
-for e in Experiments:
+for e in experiments:
     ax = graph.add_subplot(15,3,pos)
     exData = data.loc[data.Experiment == e,:]
     sims = exData.index.get_level_values(1).drop_duplicates()
@@ -1410,10 +2300,10 @@ for sim in HarvestData.index:
 
 # %%
 GrainNData = Observed.loc[:,['Wheat.Grain.Wt','Wheat.Grain.NConc','Wheat.Grain.N','Wheat.Phenology.Stage','Experiment']].dropna().copy()
-GrainNExperiments = GrainNData.Experiment.drop_duplicates()
+GrainNexperiments = GrainNData.Experiment.drop_duplicates()
 GrainNExpGraphs = plt.figure(figsize=(20,10))
 pos=1
-for e in GrainNExperiments:
+for e in GrainNexperiments:
     ax = GrainNExpGraphs.add_subplot(4,6,pos)
     ExpGrainNData = GrainNData.loc[GrainNData.Experiment==e].droplevel(0)
     sims = ExpGrainNData.index.get_level_values(0).drop_duplicates()
@@ -1443,7 +2333,7 @@ kgraph = plt.figure(figsize=(10,5))
 cpos = 1
 mpos = 1
 expts = Observed.index.get_level_values(0).drop_duplicates()
-for e in Experiments:
+for e in experiments:
     expData = Observed.loc[Observed.Experiment==e,:].droplevel(0)
     sims = expData.index.get_level_values(0).drop_duplicates()
     expDF = pd.DataFrame()
@@ -1482,10 +2372,10 @@ plt.plot([4,4.8,5.2,6],[0.75,0.75,0.55,0.55],'-')
 
 # %%
 SLAData = Observed.loc[:,['Wheat.Leaf.SpecificAreaCanopy','Wheat.Phenology.Stage','Experiment']].dropna().copy()
-SLAExperiments = SLAData.Experiment.drop_duplicates()
+SLAexperiments = SLAData.Experiment.drop_duplicates()
 SLAExpGraphs = plt.figure(figsize=(20,10))
 pos=1
-for e in SLAExperiments:
+for e in SLAexperiments:
     ax = SLAExpGraphs.add_subplot(4,6,pos)
     ExpSLAData = SLAData.loc[SLAData.Experiment==e].droplevel(0)
     sims = ExpSLAData.index.get_level_values(0).drop_duplicates()
@@ -1511,7 +2401,7 @@ for e in SLAExperiments:
 # # Above Ground N
 
 # %%
-AGNExperiments = ['APS2',
+AGNexperiments = ['APS2',
  'APS26',
  'APS6',
  'FAR NSW W23-05',
@@ -1529,11 +2419,11 @@ AGNExperiments = ['APS2',
 
 Observed.loc[:,'Wheat.AboveGround.N'] = pd.to_numeric(Observed.loc[:,'Wheat.AboveGround.N'] )
 AGNData = Observed.loc[:,['Wheat.AboveGround.N','Wheat.Phenology.Stage','Experiment']].dropna().copy()
-#AGNExperiments = AGNData.Experiment.drop_duplicates()
+#AGNexperiments = AGNData.Experiment.drop_duplicates()
 AGNGraphs = plt.figure(figsize=(10,20))
 pos=1
 Nexpts = []
-for e in AGNExperiments:
+for e in AGNexperiments:
     ax = AGNGraphs.add_subplot(8,3,pos)
     ExpAGNData = AGNData.loc[AGNData.Experiment==e].droplevel(0)
     ExpAGNData.drop_duplicates(inplace=True)
@@ -1581,4 +2471,4 @@ for sim in simulations:
 Observed.loc[:,"Wheat.Phenology.Stage"] > 5.5 
 
 # %%
-Observed
+list(Observed["Wheat.SowingData.Cultivar"].drop_duplicates().values)

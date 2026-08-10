@@ -306,127 +306,6 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
 
     return pd.concat(frames, ignore_index=True)
     
-# def load_branch_data(branch_name, git_branch, config, apply_fn):
-#     if should_run(branch_name, config):
-#         reset_repo(config)
-#         checkout_branch(git_branch, config)
-#         build_apsim(config)
-
-#     frames = []
-
-#     for sim in config["sim_files"]:
-#         db = branch_db_path(sim, branch_name)
-
-#         # --- Run APSIM ---
-#         if should_run(branch_name, config):
-#             print("")
-#             print(f"▶ Running APSIM [{branch_name}]: {sim.name}")
-#             run_apsim(sim, config, apply_fn)
-
-#             original_db = sim.with_suffix(".db")
-#             branch_db = branch_db_path(sim, branch_name)
-
-#             shutil.copyfile(original_db, branch_db)
-
-#         else:
-#             print(f"⏭ Skipping run [{branch_name}]: {sim.name}")
-
-#         if not db.exists():
-#             print(f"❌ DB not created: {db}")
-#             continue
-
-#         # ======================================================
-#         # ✅ READ DATABASE
-#         # ======================================================
-#         with sqlite3.connect(db) as conn:
-
-#             tables = pd.read_sql(
-#                 "SELECT name FROM sqlite_master WHERE type='table';",
-#                 conn
-#             )["name"].tolist()
-
-#             print(f"{sim.name} tables: {tables}")
-
-#             # ---------------------------------------------
-#             # ✅ Observed
-#             # ---------------------------------------------
-#             obs = None
-#             if "Observed" in tables:
-#                 obs = pd.read_sql("SELECT * FROM [Observed]", conn)
-#                 obs["type"] = "obs"
-
-#             # ---------------------------------------------
-#             # ✅ Predictions
-#             # ---------------------------------------------
-#             pred = None
-#             if "AnalysisReport" in tables:
-#                 pred = pd.read_sql("SELECT * FROM [AnalysisReport]", conn)
-#                 pred["type"] = "pred"
-
-#             if pred is None and obs is None:
-#                 continue
-                
-#             # ---------------------------------------------
-#             # ✅ CHECK SimulationID alignment (per file)
-#             # ---------------------------------------------
-#             if pred is not None and obs is not None:
-
-#                 pred_ids = set(pred["SimulationID"].drop_duplicates())
-#                 obs_ids  = set(obs["SimulationID"].drop_duplicates())
-
-#                 # simulations in pred but not in obs
-#                 missing_ids = pred_ids - obs_ids
-
-#                 if missing_ids:
-#                     print(f"\n⚠️ Missing observed simulations in {sim.name}:")
-#                     print(f"Count: {len(missing_ids)}")
-
-#                     # attempt to print identifying info from pred
-#                     cols_to_show = [
-#                         c for c in [
-#                             "SimulationID",
-#                             "Simulation.Name",   # if present
-#                             "Experiment",
-#                         ] if c in pred.columns
-#                     ]
-
-#                     missing_rows = (
-#                         pred[pred["SimulationID"].isin(missing_ids)]
-#                         [cols_to_show]
-#                         .drop_duplicates()
-#                         .sort_values("SimulationID")
-#                     )
-
-#                     print(missing_rows.head(20)["Simulation.Name"].to_list())  # limit output     
-                    
-#             # ---------------------------------------------
-#             # ✅ Attach metadata (branch, file)
-#             # ---------------------------------------------
-#             if pred is not None:
-#                 pred["branch"] = branch_name
-#                 pred["file"] = sim.name
-
-#             if obs is not None:
-#                 obs["branch"] = branch_name
-#                 obs["file"] = sim.name
-
-#             # ---------------------------------------------
-#             # ✅ Combine
-#             # ---------------------------------------------
-#             df = pd.concat(
-#                 [x for x in [pred, obs] if x is not None],
-#                 ignore_index=True
-#             )
-
-#             frames.append(df)
-
-#     if not frames:
-#         raise RuntimeError(f"No data loaded for branch {branch_name}")
-
-#     return pd.concat(frames, ignore_index=True)
-
-
-
 #__________________________________________________________
 # Enforce indicies on observed data
 #----------------------------------------------------------
@@ -751,6 +630,11 @@ def get_stage_timeseries(tidy, config, variable, filters=None):
     # Attach obs (LEFT — sparse)
     # -------------------------------
     dfm = dfm.merge(obs, on=keys, how="left")
+
+    ## Assume obs that did not match a stage are after predicted harvest and assign harvest stage
+    for i in dfm.index:
+        if (dfm.loc[i,'stage'] == 0) | np.isnan(dfm.loc[i,'stage']):
+            dfm.loc[i,'stage'] = 12
 
     # -------------------------------
     # ✅ FIX DUPLICATES (CRITICAL)
@@ -1393,7 +1277,7 @@ def plot_stage_timeseries(
                 s=40
             )
             
-            plt.xlim(0,11)
+            plt.xlim(0,13)
 
         # -----------------------
         # TITLES
@@ -1562,8 +1446,8 @@ BRANCHES = {
 # ======================
 
 # Options:
-RUN_BRANCHES = []                    # run nothing (use existing DBs)
-#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+#RUN_BRANCHES = []                    # run nothing (use existing DBs)
+RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
@@ -1696,7 +1580,7 @@ def write_apply_file(sim_file):
     # Add AnalysisReport to all Simulation nodes
     # ---------------------------------------------
     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
-    
+        
     # ---------------------------------------------
     # Inject Spectral model into each simulation
     # ---------------------------------------------
@@ -1713,7 +1597,8 @@ def write_apply_file(sim_file):
     # Save + run
     # ---------------------------------------------
     lines.append(f"save {sim_file}")
-    lines.append(f"run {sim_file}")
+    #lines.append(f"save")
+    lines.append(f"run")
 
     # Write file
     apply_file.write_text("\n".join(lines))

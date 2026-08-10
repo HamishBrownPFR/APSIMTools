@@ -66,8 +66,8 @@ BRANCHES = {
 # ======================
 
 # Options:
-#RUN_BRANCHES = []                    # run nothing (use existing DBs)
-RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
@@ -217,7 +217,7 @@ def write_apply_file(sim_file):
     # Save + run
     # ---------------------------------------------
     lines.append(f"save {sim_file}")
-    lines.append(f"run {sim_file}")
+    lines.append(f"run")
 
     # Write file
     apply_file.write_text("\n".join(lines))
@@ -576,8 +576,8 @@ plot_stage_timeseries(
     color_by="DevelopmentType",
     marker_by=None,
     panels_by="Experiment",
-    filters={"branch": ["working V2"],
-            "ProjectGroup":["GxExM"]},
+    filters={"branch": ["working V2"]},
+            #"ProjectGroup":["GxExM"]},
     max_cols=4,
     panel_scale=0.8,
 )
@@ -645,7 +645,7 @@ plot_stage_timeseries(
     color_by="DevelopmentType",
     marker_by="Wheat.SowingData.Cultivar",
     panels_by="Experiment",
-    filters={"branch": ["working V2"]},
+    filters={"branch": ["master"]},
     max_cols=4,
     panel_scale=0.8,
 )
@@ -723,19 +723,19 @@ plt.show()
 # ### CHO %
 
 # %%
-plot_stage_timeseries(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Leaf.Live.WSCConc",
-    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
-    color_by="Experiment",
-    marker_by="Wheat.SowingData.Cultivar",
-    panels_by="branch",
-    max_cols=3,
-    panel_scale=2,
-)
+# plot_stage_timeseries(
+#     tidy = tidy,
+#     config = CONFIG,
+#     variable = "Wheat.Leaf.Live.WSCConc",
+#     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+#     color_by="Experiment",
+#     marker_by="Wheat.SowingData.Cultivar",
+#     panels_by="branch",
+#     max_cols=3,
+#     panel_scale=2,
+# )
 
-plt.show()
+# plt.show()
 
 # %% [markdown]
 # ## Leaf Dead Wt
@@ -809,19 +809,19 @@ plt.show()
 # ### CHO %
 
 # %%
-plot_stage_timeseries(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Leaf.Dead.WSCConc",
-    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
-    color_by="Experiment",
-    marker_by="DevelopmentType",
-    panels_by="branch",
-    max_cols=3,
-    panel_scale=2,
-)
+# plot_stage_timeseries(
+#     tidy = tidy,
+#     config = CONFIG,
+#     variable = "Wheat.Leaf.Dead.WSCConc",
+#     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+#     color_by="Experiment",
+#     marker_by="DevelopmentType",
+#     panels_by="branch",
+#     max_cols=3,
+#     panel_scale=2,
+# )
 
-plt.show()
+# plt.show()
 
 # %% [markdown]
 # ## Stem Wt
@@ -924,18 +924,18 @@ graph = plot_stage_timeseries(
 graph.savefig("Stem WSC GxExM.jpg")
 
 # %%
-graph = plot_stage_timeseries(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Stem.WSCConc",
-    filters={"ProjectGroup": ["WWHI"]},
-    color_by="Experiment",
-    marker_by="DevelopmentType",
-    panels_by="branch",
-    max_cols=3,
-    panel_scale=2,
-)
-graph.savefig("Stem WSC WWHI.jpg")
+# graph = plot_stage_timeseries(
+#     tidy = tidy,
+#     config = CONFIG,
+#     variable = "Wheat.Stem.WSCConc",
+#     filters={"ProjectGroup": ["WWHI"]},
+#     color_by="Experiment",
+#     marker_by="DevelopmentType",
+#     panels_by="branch",
+#     max_cols=3,
+#     panel_scale=2,
+# )
+# graph.savefig("Stem WSC WWHI.jpg")
 
 # %% [markdown]
 # ## Spike Weight
@@ -949,7 +949,7 @@ plot_obs_pred_by_branch(
     config = CONFIG,
     variable = "Wheat.Spike.Wt",
     mode="daily",
-    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+    #filters={"Experiment": ["Gnarwarre2025"]},
     color_by = "Experiment",
     marker_by = "Wheat.SowingData.Cultivar",
     size_by = None
@@ -1009,19 +1009,19 @@ plt.show()
 # ### CHO %
 
 # %%
-plot_stage_timeseries(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Spike.WSCConc",
-    filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
-    color_by="Experiment",
-    marker_by="Wheat.SowingData.Cultivar",
-    panels_by="branch",
-    max_cols=3,
-    panel_scale=2,
-)
+# plot_stage_timeseries(
+#     tidy = tidy,
+#     config = CONFIG,
+#     variable = "Wheat.Spike.WSCConc",
+#     filters=None, #filters={"Experiment": ["DookieWWHI2025"]},
+#     color_by="Experiment",
+#     marker_by="Wheat.SowingData.Cultivar",
+#     panels_by="branch",
+#     max_cols=3,
+#     panel_scale=2,
+# )
 
-plt.show()
+# plt.show()
 
 # %% [markdown]
 # ## AboveGround N
