@@ -704,7 +704,7 @@ def write_cultivar_apply_file(apply_path: Path, apsimx_path: Path, cultivar_name
     lines.append(f"[{playListName}].Text=*{cultivar_name}*")
 
     # Remove existing cultivar overwrites and add new one for current cultivar and parameter set
-    lines.append(f"delete all [Cultivar] from [Replacements]")
+    lines.append(f"delete all [Replacements].[Cultivar]")
     lines.append(f"add new Cultivar to [Replacements] name {cultivar_name}")
     lines.append(f"[Replacements].{cultivar_name}.Command = ")
     

@@ -165,7 +165,6 @@ additional_index_maps = {
     }
 }
 
-
 # +
 
 # # get unique simulation names
@@ -194,41 +193,42 @@ additional_index_maps = {
 # ## Write file for command line tool to apply to each .apsimx file to be run.
 # If you want to make standard modifications to all files run it can be done here
 
-def write_apply_file(sim_file):
-    """
-    Create an APSIM CLI apply file which:
-    - removes specified reports
-    - injects AnalysisReport
-    - sets variables
-    - saves and runs simulation
-    """
-    report_library = r"C:/GitHubRepos/ApsimX/Prototypes/Lentil/Report_lib.apsimx"
-    apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
+# +
+# def write_apply_file(sim_file):
+#     """
+#     Create an APSIM CLI apply file which:
+#     - removes specified reports
+#     - injects AnalysisReport
+#     - sets variables
+#     - saves and runs simulation
+#     """
+#     report_library = r"C:/GitHubRepos/ApsimX/Prototypes/Lentil/Report_lib.apsimx"
+#     apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
 
-    lines = []
+#     lines = []
 
-    # ---------------------------------------------
-    # AnalysisReport to all Simulation nodes
-    # ---------------------------------------------
-    #lines.append(f"delete all [Report]")
-    lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
+#     # ---------------------------------------------
+#     # AnalysisReport to all Simulation nodes
+#     # ---------------------------------------------
+#     #lines.append(f"delete all [Report]")
+#     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
     
-    # ---------------------------------------------
-    # Inject Spectral model into each simulation
-    # ---------------------------------------------
-    # lines.append("add [Spectral] to all [Zone]")
+#     # ---------------------------------------------
+#     # Inject Spectral model into each simulation
+#     # ---------------------------------------------
+#     # lines.append("add [Spectral] to all [Zone]")
 
-    # ---------------------------------------------
-    # Save + run
-    # ---------------------------------------------
-    lines.append(f"save {sim_file}")
-    lines.append(f"run")
+#     # ---------------------------------------------
+#     # Save + run
+#     # ---------------------------------------------
+#     lines.append(f"save {sim_file}")
+#     lines.append(f"run")
 
-    # Write file
-    apply_file.write_text("\n".join(lines))
+#     # Write file
+#     apply_file.write_text("\n".join(lines))
 
-    return apply_file
-
+#     return apply_file
+# -
 
 # ## Run simulations and read in raw .db data and process into tidy format
 
@@ -238,7 +238,7 @@ def write_apply_file(sim_file):
 # ======================
 
 # Read in raw data
-raw = load_all(config=CONFIG, apply_fn=write_apply_file)#, reset_branch=False)
+raw = load_all(config=CONFIG)#, reset_branch=False)
 
 # ✅ Ensure SimulationName exists (from AnalysisReport)
 if "Simulation.Name" in raw.columns:
@@ -274,7 +274,7 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartBuddingDAS",
     mode='harvest',
-    #filters = {"Experiment": ["Gatton19"]},
+    filters = {"Lentil.SowingData.Cultivar": ["Bolt","KelpieXT","HallmarkXT","Jumbo2"]},
     marker_by = "Experiment",
     color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
@@ -287,7 +287,7 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartFloweringDAS",
     mode='harvest',
-    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    filters = {"Lentil.SowingData.Cultivar": ["Bolt","KelpieXT","HallmarkXT","Jumbo2"]},
     marker_by = "Experiment",
     color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
@@ -300,9 +300,9 @@ graph = plot_obs_pred_by_branch(
     config=CONFIG,
     variable = "Lentil.Phenology.StartPoddingDAS",
     mode='harvest',
-    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
-    color_by = "Experiment",
-    marker_by = "Lentil.SowingData.Cultivar",
+    filters = {"Lentil.SowingData.Cultivar": ["Bolt","KelpieXT","HallmarkXT","Jumbo2"]},
+    marker_by = "Experiment",
+    color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
 )
 
@@ -402,6 +402,17 @@ graph = plot_obs_pred_by_branch(
     #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
     color_by =  "Experiment",
     marker_by = "Lentil.SowingData.Cultivar",
+    size_by=None,
+)
+
+graph = plot_obs_pred_by_branch(
+    tidy = tidy,
+    config=CONFIG,
+    variable = "Lentil.Leaf.NodeNumber",
+    mode="daily",
+    #filters = {"Lentil.SowingData.Cultivar": ["HallmarkXT"]},
+    marker_by =  "Experiment",
+    color_by = "Lentil.SowingData.Cultivar",
     size_by=None,
 )
 
@@ -687,5 +698,7 @@ graph = plot_timeseries_by_experiment(
     variable="IWeather.MinT",
     color_var="WaterTrt"
 )
+
+tidy.to_csv('AllLentilData.csv')
 
 # ### 

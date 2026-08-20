@@ -93,45 +93,6 @@ Lines = {1: '-',
 # ## Additional indexes
 
 # %%
-# DevMap = {
-# "Accroc":"Winter",
-# "Adv08_0008":"Winter",
-# "Anapurna":"Winter",
-# "Ararat":"Spring",
-# "Atlanta":"Spring",
-# }
-
-# TestSetMap = {
-# 'Turretfield2024':'WWHI',
-# 'Turretfield2024CvKittyhawkSow15-May':'WWHI',
-# 'Turretfield2024CvScepterSow16-Apr':'WWHI',
-# }
-
-# DevCols = {"Spring":"Orange",
-#            "Winter":"Blue"}
-
-# TestSetAlphas = {"WWHI":1.0,
-#                  "GxExM":0.4,
-#                  "TestSet":0.1,
-#                  "FAR":0.1}
-
-# TestSetMarkers = {"WWHI":'s',
-#                  "GxExM":'o',
-#                  "TestSet":'^',
-#                  "FAR":'v'}
-
-# TestSetSizes = {"WWHI":10,
-#                  "GxExM":50,
-#                  "TestSet":100,
-#                  "FAR":200}
-
-# plot_order = {
-#     'FAR': 0,
-#     'TestSet': 1,
-#     'GxExM': 2,
-#     'WWHI': 3
-# }
-
 [     'Blitz',       'Bolt', 'Greenfield', 'Hallmarkxt',     'Jumbo2',
      'Digger',        'Ace',     'Nugget',  'Boomer',  'Cipal0901',  'Cipal1504',  'Cipal1701',   'Commando',      'Flash',
       'Giant',  'Hurricane', 'Indianhead',      'Jumbo',    'Matilda',
@@ -193,7 +154,6 @@ def plotxy(experiments,xvar,yvar,data,addLeg = True,ncols=np.nan,cult_cols=False
     fig, ax = plt.subplots()
     cpos=1
     mpos=1
-    #experiments = experiments.sort_values(key=lambda s: s.map(lambda e: plot_order[TestSetMap[e]]))
     for e in experiments:
         plotData = data.loc[data.Experiment==e,:]
         xdata = pd.to_numeric(plotData.loc[:,xvar])
@@ -260,60 +220,6 @@ for filePath in MasterfilePaths:
 Simulations = pd.concat(allSimulations.values(),keys=allSimulations.keys(),names=['File','ID']) 
 
 # %%
-# SensibilityFolders = ['CO2AndTranspirationEfficiency',
-# 'CO2AndTemperatureInteractions',
-# 'ProteinAccumulation',
-# 'LeafAppearance',
-# 'TerminalWaterStress',
-# 'DetailedDynamics']
-
-# %%
-allHarvestPred = {}
-for filePath in MasterfilePaths:
-    fileName = filePath.split('\\')[-1].split('.')[0].replace('_master','')
-    con = sqlite3.connect(filePath)
-    HarvestPred = pd.read_sql("Select * from HarvestReport",con).dropna(axis=1,how='all')
-    con.close()
-    HarvestPred.loc[:,'SimulationName'] = [Simulations.loc[(fileName,x),'Name'] for x in HarvestPred.SimulationID]
-    HarvestPred.set_index(['SimulationName','Clock.Today'],drop=False,inplace=True)
-    HarvestPred.sort_index(inplace=True)
-    HarvestPred.sort_index(inplace=True,axis=1)
-
-    # Filter outputs from sensibility tests
-    if 'FolderName' not in HarvestPred:
-        HarvestPred.loc[:,'FolderName'] = ''
-    #validationFilter = [x not in SensibilityFolders for x in HarvestPred.FolderName]
-    #HarvestPred = HarvestPred.loc[validationFilter,:].copy()
-    HarvestPred.dropna(how='all',axis=1,inplace=True)
-    HarvestPred.loc[:,'Lentil.SowingData.Cultivar'] = [x.title() for x in HarvestPred.loc[:,'Lentil.SowingData.Cultivar']]
-    #validationFilter = [x not in SensibilityFolders for x in HarvestPred.FolderName]
-    #HarvestPred = HarvestPred.loc[validationFilter,:].copy()
-    HarvestPred.dropna(how='all',axis=1,inplace=True)
-
-    # Replace Experiment with values that have had folder name pathed in where no experiment is present
-    HarvestPred.loc[[x is None for x in HarvestPred.Experiment],'Experiment'] = HarvestPred.loc[[x is None for x in HarvestPred.Experiment],'FolderName']
-    allHarvestPred[fileName] = HarvestPred
-HarvestPred = pd.concat(allHarvestPred.values(),keys=allHarvestPred.keys(),names=['File','SimulationName','Clock.Today'])
-HarvestPred.loc[:,'File'] = HarvestPred.index.get_level_values(0)
-
-# %%
-# fill missing experiment values with simulation name
-sim_names = pd.Series(
-    HarvestPred.index.get_level_values("SimulationName"),
-    index=HarvestPred.index
-)
-
-HarvestPred["Experiment"] = (
-    HarvestPred["Experiment"]
-    .replace(r"^\s*$", pd.NA, regex=True)
-    .fillna(sim_names)
-)
-
-# %%
-Experiments = list(HarvestPred.loc[:,'Experiment'].drop_duplicates().values)
-Folders = list(HarvestPred.loc[:,'FolderName'].drop_duplicates().values)
-
-# %%
 allDailyPred = {}
 for filePath in MasterfilePaths:
     fileName = filePath.split('\\')[-1].split('.')[0].replace('_master','')
@@ -326,14 +232,28 @@ for filePath in MasterfilePaths:
     DailyPred.sort_index(inplace=True,axis=1)
     if 'FolderName' not in DailyPred:
         DailyPred.loc[:,'FolderName'] = ''
-    #validationFilter = [x not in SensibilityFolders for x in DailyPred.FolderName]
-    #DailyPred = DailyPred.loc[validationFilter,:].copy()
     DailyPred.dropna(how='all',axis=1,inplace=True)
     #Replace Experiment with values that have had folder name pathed in where no experiment is present
-    #DailyPred.loc[:,'Experiment'] = [HarvestPred.loc[x,'Experiment'] for x in DailyPred.index.get_level_values(0)]
     DailyPred.loc[[x is None for x in DailyPred.Experiment],'Experiment'] = DailyPred.loc[[x is None for x in DailyPred.Experiment],'FolderName']
     allDailyPred[fileName] = DailyPred
 DailyPred = pd.concat(allDailyPred.values(),keys=allDailyPred.keys(),names=['File','SimulationName','Clock.Today'])
+
+# %%
+# fill missing experiment values with simulation name
+sim_names = pd.Series(
+    DailyPred.index.get_level_values("SimulationName"),
+    index=DailyPred.index
+)
+
+DailyPred["Experiment"] = (
+    DailyPred["Experiment"]
+    .replace(r"^\s*$", pd.NA, regex=True)
+    .fillna(sim_names)
+)
+
+# %%
+Experiments = list(DailyPred.loc[:,'Experiment'].drop_duplicates().values)
+Folders = list(DailyPred.loc[:,'FolderName'].drop_duplicates().values)
 
 # %% [markdown]
 # # Calculate running mean met variables
@@ -359,20 +279,16 @@ RunningMeans.loc[:,'Lentil.Phenology.Stage'] = DailyPred.loc[:,'Lentil.Phenology
 # # Sort some indexing
 
 # %%
-SowIndices = [#'IWeather.Latitude',
-    #'IWeather.Longitude',
-    # 'LocationInfo.Script.Country',
-    # 'LocationInfo.Script.Region',
-    # 'LocationInfo.Script.State',
-    'Lentil.SowingData.Cultivar',
+SowIndices = ['Lentil.SowingData.Cultivar',
     'Experiment',
     'FolderName']
 
-def getValue(ind,var,HarvestPred):
+indexes = DailyPred.loc[:,SowIndices].copy()
+indexes.index = indexes.index.get_level_values(1)
+indexes = indexes.dropna().groupby(level=0).first().copy()
+def getValue(ind,var):
     try:
-        simMask = HarvestPred.SimulationName == ind
-        return HarvestPred.loc[simMask,var].values[0]
-        #return HarvestPred.loc[ind,var].values[0]
+        return indexes.loc[ind,var]
     except:
         return ""
 allObserved = {}
@@ -386,17 +302,9 @@ for filePath in MasterfilePaths:
     observed.sort_index(inplace=True)
     observed.sort_index(inplace=True,axis=1)
     for s in SowIndices:
-        observed.loc[:,s] = [getValue(x,s,HarvestPred) for x in observed.index.get_level_values(0)]
+         observed.loc[:,s] = [getValue(x,s) for x in observed.index.get_level_values(0)]
     allObserved[fileName] = observed
 Observed = pd.concat(allObserved.values(),keys=allObserved.keys(),names=['File','SimulationName','Clock.Today'])
-
-def subtract(a,b):
-    if np.isnan(b):
-        b = 0
-    return a - b
-
-#Observed.loc[:,'Lentil.AboveGroundLive.Wt'] = [subtract(Observed.iloc[x,:]['Wheat.AboveGround.Wt'], Observed.iloc[x,:]['Wheat.Leaf.Dead.Wt']) for x in range(Observed.index.size)]
-
 
 # %%
 MasterIndexVars = ['Clock.Today',
@@ -405,6 +313,7 @@ MasterIndexVars = ['Clock.Today',
 'IWeather.Radn',
 'Lentil.DaysAfterSowing',
 'Lentil.Phenology.AccumulatedTT',
+'Lentil.Phenology.AccumulatedEmergedTT',
 'Lentil.Phenology.Stage',
 'Lentil.Phenology.Photoperiod']
 
@@ -415,31 +324,6 @@ for iv in MasterIndexVars:
 for iv in MetVars:
     Observed.loc[:,'RunningMean_'+iv] = RunningMeans.reindex(Observed.index).loc[:,iv]  
     DailyPred.loc[:,'RunningMean_'+iv] = RunningMeans.reindex(DailyPred.index).loc[:,iv]  
-
-# %%
-# MasterIndexVarsHarv = ['SimulationID','SimulationName']
-
-# for iv in MasterIndexVarsHarv:
-#     Observed[iv] = HarvestPred.reindex(Observed.index).loc[:,iv]  
-
-
-# def setvar(x):
-#     if np.isnan(Observed.loc[x,'Wheat.Population'].values[0]):
-#         try:
-#             if ~np.isnan(HarvestPred.loc[x,'Wheat.SowingData.Population'].values[0]):
-#                 Observed.loc[x,'Wheat.Population'] = HarvestPred.loc[x,'Wheat.SowingData.Population'].values[0]
-#         except:
-#             try:
-#                 if ~np.isnan(HarvestPred.loc[(x[0],x[1]),'Wheat.SowingData.Population'].values[0]):
-#                     Observed.loc[x,'Wheat.Population'] = HarvestPred.loc[(x[0],x[1]),'Wheat.SowingData.Population'].values[0]
-#             except:
-#                 do = 'Nothing'
-
-# for x in Observed.index:
-#         setvar(x)
-
-# Observed.sort_index(inplace=True)
-# Observed.sort_index(inplace=True,axis=1)
 
 # %%
 # fill missing experiment values with simulation name
@@ -507,7 +391,7 @@ plt.ylabel(yvar)
 plt.xlabel(xvar)
 
 # %%
-xvar,yvar,Pp = 'Lentil.Phenology.AccumulatedTT','Lentil.Leaf.NodeNumber','Lentil.Phenology.Photoperiod'
+xvar,yvar,Pp = 'Lentil.Phenology.AccumulatedEmergedTT','Lentil.Leaf.NodeNumber','Lentil.Phenology.Photoperiod'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 data = Observed.dropna(subset=[xvar,yvar,Pp])
 cultivars = data.loc[:,"Lentil.SowingData.Cultivar"].drop_duplicates().values
@@ -533,7 +417,7 @@ for c in cultivars:
     plt.xlim(0,2000)
     pos+=1
 
-    ax1.plot([100,300,1700],[0,8,30],'-')
+    ax1.plot([0,100,1500],[0,5,30],'-')
 
 
 legend_handles = [
@@ -548,12 +432,62 @@ legend_handles = [
     for exp in colorMap.keys()
 ]
 
-fig.legend(
-    handles=legend_handles,
-    loc='center left',
-    bbox_to_anchor=(0.4, 0.5),
-    title='Experiment'
-)
+# fig.legend(
+#     handles=legend_handles,
+#     loc='center left',
+#     bbox_to_anchor=(0.4, 0.5),
+#     title='Experiment'
+# )
+
+# %%
+xvar,yvar,Pp = 'Lentil.Phenology.AccumulatedEmergedTT','Lentil.Leaf.NodeNumber','Lentil.Phenology.Photoperiod'
+#experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+cultivars = Observed.dropna(subset=[xvar,yvar]).loc[:,"Lentil.SowingData.Cultivar"].drop_duplicates()
+data = Observed.dropna(subset=[xvar,yvar,Pp])
+#cultivars = data.loc[:,"Lentil.SowingData.Cultivar"].drop_duplicates().values
+experiments =  data.loc[:,"Experiment"].drop_duplicates().values
+colorMap = {cultivar: Colors[i+1] for i, cultivar in enumerate(cultivars)}
+
+fig = plt.figure(figsize=(10,12))
+pos=1
+for e in experiments:
+    ax1 = fig.add_subplot(5,3,pos)
+    plotData = data.loc[data.loc[:,"Experiment"]==e,:]
+    xdata = pd.to_numeric(plotData.loc[:,xvar])
+    ydata = pd.to_numeric(plotData.loc[:,yvar])
+    pp = pd.to_numeric(plotData.loc[:,Pp])
+    experiments =  plotData.loc[:,"Experiment"]
+    colors = [colorMap[c] for c in cultivars]
+    ax1.scatter(xdata, ydata, s=10)
+    ax1.set_ylim(0,35)
+    ax1.text(0.05,0.9,e,transform=ax1.transAxes)
+    # ax2 = ax1.twinx()
+    # #ax2.scatter(xdata, pp, c=colors, s=1)
+    # ax2.set_ylim(8,16)
+    plt.xlim(0,2000)
+    pos+=1
+
+    ax1.plot([0,1500],[2,32],'-')
+
+
+legend_handles = [
+    Line2D(
+        [0], [0],
+        marker='o',
+        color='w',
+        markerfacecolor=colorMap[exp],
+        markersize=6,
+        label=exp
+    )
+    for exp in colorMap.keys()
+]
+
+# fig.legend(
+#     handles=legend_handles,
+#     loc='center left',
+#     bbox_to_anchor=(0.4, 0.5),
+#     title='Experiment'
+# )
 
 # %%
 xvar,yvar,Pp = 'Lentil.Phenology.AccumulatedTT','Lentil.Leaf.NodeNumber','Lentil.Phenology.Photoperiod'
@@ -605,8 +539,12 @@ fig.legend(
 )
 
 # %%
-xvar,yvar = 'Lentil.Phenology.AccumulatedTT','Lentil.Phenology.Photoperiod'
-experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+DailyPred.loc[:,'Lentil.Phenology.Photoperiod'].diff()
+
+# %%
+DailyPred.loc[:,'Lentil.Phenology.DeltaPhotoperiod'] = DailyPred.loc[:,'Lentil.Phenology.Photoperiod'].diff()
+xvar,yvar = 'Lentil.Phenology.Stage','Lentil.Phenology.Photoperiod'
+experiments = Observed.dropna(subset=[xvar]).Experiment.drop_duplicates()
 data = DailyPred
 
 fig = plt.figure(figsize=(10,15))
@@ -617,7 +555,8 @@ for e in experiments:
     xdata = pd.to_numeric(plotData.loc[:,xvar])
     ydata = pd.to_numeric(plotData.loc[:,yvar])
     plt.plot(xdata,ydata,'o',color='k',label=e,ms=1)
-    plt.ylim(10,16)
+    #plt.ylim(-.1,.1)
+    plt.ylim(10,20)
     plt.text(0.05,0.9,e,transform = ax.transAxes)
     pos+=1
 
