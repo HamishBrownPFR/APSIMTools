@@ -130,15 +130,14 @@ def run_apsim(sim_file, config, apply_fn):
     """
     print(f"▶ Running APSIM: {sim_file.name}")
 
-    apply_file = apply_fn(sim_file)
-    
+    cmd = [config["apsim_exe"], sim_file]
+
+    if apply_fn is not None:
+        apply_file = apply_fn(sim_file)
+        cmd.extend(["--apply", apply_file])
+
     result = subprocess.run(
-        [
-            config["apsim_exe"],
-            sim_file,
-            "--apply",
-            apply_file
-        ],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True
@@ -178,7 +177,7 @@ def should_run(branch_name, config):
     return branch_name in config["run_branches"]
 
 
-def load_all(config, apply_fn):
+def load_all(config, apply_fn = None):
     return pd.concat([
         load_branch_data(name, git_branch, config, apply_fn)
         for name, git_branch in config["branches"].items()
@@ -234,21 +233,22 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
             # ✅ Observed
             # ---------------------------------------------
             obs = None
-            if "Observed" in tables:
-                obs = pd.read_sql("SELECT * FROM [Observed]", conn)
+            if config["obs_table_name"] in tables:
+                obs = pd.read_sql(f"SELECT * FROM [{config['obs_table_name']}]", conn)
+                obs = obs.drop(columns=["SimulationName"], errors="ignore")
                 obs["type"] = "obs"
 
             # ---------------------------------------------
             # ✅ Predictions
             # ---------------------------------------------
             pred = None
-            if "AnalysisReport" in tables:
-                pred = pd.read_sql("SELECT * FROM [AnalysisReport]", conn)
+            if config["pred_table_name"] in tables:
+                pred = pd.read_sql(f"SELECT * FROM [{config['pred_table_name']}]", conn)
                 pred["type"] = "pred"
 
             if pred is None and obs is None:
                 continue
-
+            
             # ---------------------------------------------
             # ✅ CRITICAL FIX: enforce SimulationID alignment
             # ---------------------------------------------
@@ -303,7 +303,7 @@ def load_branch_data(branch_name, git_branch, config, apply_fn):
 
     if not frames:
         raise RuntimeError(f"No data loaded for branch {branch_name}")
-
+    
     return pd.concat(frames, ignore_index=True)
     
 #__________________________________________________________
@@ -338,7 +338,7 @@ def enforce_indices_to_observed(df, indices_to_fill):
 def to_tidy(df, config, additional_index_maps=None):
 
     df = df.copy()
-
+   
     # rename Simulation.Name
     if "Simulation.Name" in df.columns:
         df = df.rename(columns={"Simulation.Name": "SimulationName"})
@@ -1476,7 +1476,9 @@ CONFIG = {
     "stage_var": "Wheat.Phenology.Stage",
     "stage_name_var": "Wheat.Phenology.CurrentStageName",
     "harvest_stage": "HarvestRipe",
-    "cultivar_col": "Wheat.SowingData.Cultivar"
+    "cultivar_col": "Wheat.SowingData.Cultivar",
+    "obs_table_name": "Observed",
+    "pred_table_name": "AnalysisReport"
 }
 
 validate_run_branches(config=CONFIG)
