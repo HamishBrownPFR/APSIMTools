@@ -34,6 +34,8 @@ import sqlite3
 import subprocess
 import shutil
 import warnings
+from matplotlib.lines import Line2D
+
 
 # graph models
 from apsim_tools.graphing import (
@@ -232,7 +234,7 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branch":  "UoM_Wheat",
-    "run_sims": False,
+    "run_sims": True,
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -265,6 +267,11 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     lines.append("delete all [Report]")
     lines.append(f"add [ObsAnalysisReport] from {report_library} to all [Zone]")
+
+    # ---------------------------------------------
+    # remove predicted Observed tables
+    # ---------------------------------------------
+    lines.append("delete all [PredictedObserved]")
     
     # ---------------------------------------------
     # Save + run
@@ -279,7 +286,7 @@ def write_apply_file(sim_file):
 
 
 # %% [markdown]
-# # Read in data
+# ## Read in data
 
 # %%
 data = load_branch_data(CONFIG, write_apply_file)
@@ -1381,9 +1388,6 @@ data, met_vars = add_weather_predictors(data, mean_windows=(7, 30))
 
 data = attach_pred_vars(data, met_vars)
 
-# %%
-data.obs
-
 # %% [markdown]
 # # Graphing
 
@@ -1464,36 +1468,65 @@ def add_plot_legend(ax=None):
 
 
 # %%
-def plotxy(experiments,xvar,yvar,data,addLeg = True,ncols=np.nan,cult_cols=False):
-
+def plotxy_markers(yvar, 
+           xvar = 'Wheat.Phenology.Stage',
+           color_by = "DevelopmentType",
+           marker_by = 'ProjectGroup',
+           color_map = DevCols,
+           marker_map = TestSetMarkers,
+           alpha_map = TestSetAlphas,
+           size_map = TestSetSizes):
     fig, ax = plt.subplots()
     cpos=1
     mpos=1
-    experiments = experiments.sort_values(key=lambda s: s.map(lambda e: plot_order[TestSetMap[e]]))
-    for e in experiments:
-        plotData = data.loc[data.Experiment==e,:]
-        xdata = pd.to_numeric(plotData.loc[:,xvar])
-        ydata = pd.to_numeric(plotData.loc[:,yvar])
-        if cult_cols==False:
-            plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=e)
-            cpos+=1
-            mpos+=1
-            if mpos>16:
-                mpos=1
-            if cpos>28:
-                cpos=1
-        else:
-            cultivars =  plotData.loc[:,"Wheat.SowingData.Cultivar"]
-            colors = cultivars.map(lambda c: DevCols[DevMap[c]])
-            e_marker = TestSetMarkers[TestSetMap[e]]
-            e_alpha = TestSetAlphas[TestSetMap[e]]
-            e_size = TestSetSizes[TestSetMap[e]]
-            plt.scatter(xdata,ydata,c=colors, marker=e_marker,alpha = e_alpha,s = e_size)
-            add_plot_legend(ax)
-            addLeg = False
+    for m in marker_map.keys():
+        plotData = data.obs.loc[data.obs.loc[:,marker_by] == m,[color_by, xvar,yvar]].dropna()
+        color_ix =  plotData.loc[:,color_by]
+        colors = color_ix.map(lambda c: color_map[c])
+        marker = marker_map[m]
+        alpha = alpha_map[m]
+        size = size_map[m]
+        plt.scatter(plotData[xvar],plotData[yvar],c=colors, marker=marker, alpha = alpha, s = size)
+        add_plot_legend(ax)
+    plt.ylabel(yvar)
+    plt.xlabel(xvar)
+
+
+# %%
+plotxy_markers('Wheat.Stem.Wt')
+
+
+# %%
+def plotxy(yvar,
+            xvar = "Wheat.Phenology.Stage",
+            color_by = 'Experiment', 
+            addLeg = True,
+            ncols=np.nan):
+    
+    fig, ax = plt.subplots()
+    cpos=1
+    mpos=1
+
+    plotData = data.obs.loc[:,[color_by,xvar,yvar]].dropna()
+    groups = plotData.loc[:,color_by].drop_duplicates()
+    for g in groups:
+        subPlotData = plotData.loc[plotData.Experiment==g,:]
+        xdata = pd.to_numeric(subPlotData.loc[:,xvar])
+        ydata = pd.to_numeric(subPlotData.loc[:,yvar])
+        plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=g)
+        cpos+=1
+        mpos+=1
+        if mpos>13:
+            mpos=1
+        if cpos>28:
+            cpos=1
     if addLeg == True:
         if np.isnan(ncols):
-             ncols = np.ceil(experiments.size/17)
+             ncols = np.ceil(groups.size/17)
         plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=ncols)
     plt.ylabel(yvar)
     plt.xlabel(xvar)
+
+
+# %%
+plotxy('Wheat.Stem.Wt')

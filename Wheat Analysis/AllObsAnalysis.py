@@ -22,6 +22,36 @@ import sqlite3
 import warnings
 from matplotlib.lines import Line2D
 
+import sys
+sys.path.append(r"C:\GitHubRepos\APSIMTools\GraphLib")
+
+# %load_ext autoreload
+# %autoreload 2
+
+from pathlib import Path
+
+# graph models
+from apsim_tools.graphing import (
+    plot_obs_pred_by_branch,
+    plot_stage_timeseries
+)
+
+from apsim_tools.style import ( 
+    Colors, 
+    Markers,
+    Lines
+)
+
+from apsim_tools.runner import (
+    load_all,
+    validate_run_branches,
+    to_tidy
+)
+
+# %%
+# import psutil
+# print(psutil.virtual_memory())
+
 # %%
 warnings.filterwarnings('ignore',category=pd.errors.PerformanceWarning)
 
@@ -90,7 +120,121 @@ Lines = {1: '-',
  16: ':'}
 
 # %% [markdown]
+# # Run all simulations to update
+
+# %%
+# ======================
+# CONFIG
+# ======================
+BRANCHES = {
+    "master": "UoM_Wheat",
+    "working": "WheatNeil",
+    "working V2": "WheatHamish"
+}
+
+# ======================
+# RUN CONTROL - Specify which branches to (re)run
+# ======================
+
+# Options:
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+#RUN_BRANCHES = ["master"]
+#RUN_BRANCHES = ["working"]
+#RUN_BRANCHES = ["working V2"]
+
+SIM_FILES = [
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\WaggaWagga2024.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\WaggaWagga2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2024.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Gnarwarre2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2024.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\GrassPatch2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Fords2025.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Turretfield2024.apsimx')
+]
+
+CONFIG = {
+    "branches": BRANCHES,
+    "run_branches": RUN_BRANCHES,
+    "sim_files": SIM_FILES,
+    "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
+    "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
+    "apsim_solution": r"C:\GitHubRepos\ApsimX\ApsimX.sln",
+    "stage_var": "Wheat.Phenology.Stage",
+    "stage_name_var": "Wheat.Phenology.CurrentStageName",
+    "harvest_stage": "HarvestRipe",
+    "cultivar_col": "Wheat.SowingData.Cultivar"
+}
+
+
+# %%
+# this function writes and apply file that the CLI
+def write_apply_file(sim_file):
+    """
+    Create an APSIM CLI apply file which:
+    - removes specified reports
+    - injects AnalysisReport
+    - sets variables
+    - saves and runs simulation
+    """
+    report_library = r"C:\GitHubRepos\APSIMTools\Report_lib.apsimx"
+    apply_file = sim_file.with_name(f"_apply_{sim_file.stem}.txt")
+
+    lines = []
+
+    # ---------------------------------------------
+    # Add AnalysisReport to all Simulation nodes
+    # ---------------------------------------------
+    lines.append("delete all [Report]")
+    lines.append(f"add [ObsAnalysisReport] from {report_library} to all [Zone]")
+
+    # ---------------------------------------------
+    # Remove existing ObsPred table and add HarvestObsPred to data store
+    # ---------------------------------------------
+    lines.append("delete all [PredictedObserved]")
+    
+    lines.append("add new PredictedObserved to [DataStore] name HarvestObsPred")
+    lines.append("[HarvestObsPred].PredictedTableName  = AnalysisReport")
+    lines.append("[HarvestObsPred].ObservedTableName  = Observed")
+    lines.append("[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
+    lines.append("[HarvestObsPred].FieldName2UsedForMatch  = Wheat.Phenology.CurrentStageName")
+        
+    lines.append("add new PredictedObserved to DataStore name DailyObsPred")
+    lines.append("[DailyObsPred].PredictedTableName  = AnalysisReport")
+    lines.append("[DailyObsPred].ObservedTableName  = Observed")
+    lines.append("[DailyObsPred].FieldNameUsedForMatch  = SimulationName")
+    lines.append("[DailyObsPred].FieldName2UsedForMatch  = Clock.Today")
+    
+    # ---------------------------------------------
+    # Inject Spectral model into each simulation
+    # ---------------------------------------------
+    lines.append("delete all [Spectral]")
+    lines.append("add new Spectral to all [Zone]")
+
+    # ---------------------------------------------
+    # Save + run
+    # ---------------------------------------------
+    lines.append(f"save {sim_file}")
+    lines.append(f"run")
+
+    # Write file
+    apply_file.write_text("\n".join(lines))
+
+    return apply_file
+
+
+# %%
+
+# %% [markdown]
 # ## Additional indexes
+
+# %%
 
 # %%
 DevMap = {
@@ -197,7 +341,7 @@ DevMap = {
 "Whistler":"Winter",
 "Wilgoyne":"Spring",
 "Wills":"Spring",
-"Wyalkatchem":"Winter",
+"Wyalkatchem":"Spring",
 "Wylah":"Winter",
 "Yecora":"Spring",
 "Yitpi":"Spring",
@@ -689,9 +833,9 @@ TestSetMap = {
 'FAR WAG W22-03CvV12167-048':'FAR',
 'FAR WAG W22-03CvValiant':'FAR',
 'FAR WAG W22-03CvVixen':'FAR',
-'Pask LC07':'WWHI',
-'Pask TT06':'WWHI',
-'Pask TT07':'WWHI',
+'Pask LC07':'TestSet',
+'Pask TT06':'TestSet',
+'Pask TT07':'TestSet',
 'Gatton2014CV29B':'GxExM',
 'Gatton2014CV5A':'GxExM',
 'Gatton2014CV60A':'GxExM',
@@ -897,8 +1041,6 @@ MasterfilePaths = [r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat_master.d
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
-                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
-                   r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2025_master.db',
                    r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\WaggaWagga2024_master.db',
@@ -934,6 +1076,7 @@ SensibilityFolders = ['CO2AndTranspirationEfficiency',
 # %%
 allHarvestPred = {}
 for filePath in MasterfilePaths:
+    print(filePath)
     fileName = filePath.split('\\')[-1].split('.')[0].replace('_master','')
     con = sqlite3.connect(filePath)
     HarvestPred = pd.read_sql("Select * from HarvestReport",con).dropna(axis=1,how='all')
@@ -978,6 +1121,8 @@ Experiments = list(HarvestPred.loc[:,'Experiment'].drop_duplicates().values)
 Folders = list(HarvestPred.loc[:,'FolderName'].drop_duplicates().values)
 
 # %%
+import os
+import psutil
 allDailyPred = {}
 for filePath in MasterfilePaths:
     fileName = filePath.split('\\')[-1].split('.')[0].replace('_master','')
@@ -986,6 +1131,18 @@ for filePath in MasterfilePaths:
     con.close()
     DailyPred.loc[:,'SimulationName'] = [Simulations.loc[(fileName,x),'Name'] for x in DailyPred.SimulationID]
     DailyPred.set_index(['SimulationName','Clock.Today'],drop=False,inplace=True)
+
+    process = psutil.Process(os.getpid())
+    
+    print(
+        "RSS GB:",
+        round(process.memory_info().rss / 1024**3, 2)
+    )
+    
+    print(
+        "DF MB:",
+        round(DailyPred.memory_usage(deep=True).sum() / 1024**2, 2)
+    )
     DailyPred.sort_index(inplace=True)
     DailyPred.sort_index(inplace=True,axis=1)
     if 'FolderName' not in DailyPred:
@@ -997,7 +1154,24 @@ for filePath in MasterfilePaths:
     #DailyPred.loc[:,'Experiment'] = [HarvestPred.loc[x,'Experiment'] for x in DailyPred.index.get_level_values(0)]
     DailyPred.loc[[x is None for x in DailyPred.Experiment],'Experiment'] = DailyPred.loc[[x is None for x in DailyPred.Experiment],'FolderName']
     allDailyPred[fileName] = DailyPred
+total_mb = sum(
+    df.memory_usage(deep=True).sum()
+    for df in allDailyPred.values()
+) / 1024**2
+
+print("Input size:", round(total_mb, 1), "MB")
 DailyPred = pd.concat(allDailyPred.values(),keys=allDailyPred.keys(),names=['File','SimulationName','Clock.Today'])
+print(
+    DailyPred.memory_usage(deep=True).sum() / 1024**2,
+    "MB"
+)
+
+# %%
+import sys
+print(sys.executable)
+
+import psutil
+print(psutil.Process().memory_info())
 
 # %% [markdown]
 # # Calculate running mean met variables
@@ -1228,11 +1402,27 @@ c = 'Wheat.Grain.Size'
 Observed.loc[:,[a,b,c]] = [FillDataGap(Observed.iloc[x,:][[a,b,c]]) for x in range(Observed.index.size)]
 
 
+# %%
+import platform
+import struct
+
+print(platform.python_version())
+print(struct.calcsize("P") * 8)
+
+# %%
+print(
+DailyPred.memory_usage(deep=True).sum() / 1024**2,
+"MB"
+)
+
 # %% [markdown]
 # # Partitioning analysis
 
 # %% [markdown]
 # ### Spike Wt
+
+# %%
+experiments
 
 # %%
 Observed.loc[:,'Spike/Stem'] = Observed.loc[:,'Wheat.Spike.Wt']/Observed.loc[:,'Wheat.Stem.Wt']
@@ -1277,9 +1467,9 @@ xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Stem.WtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 plt.plot([3.0,5.0, 6.0,8.0],
-         [0.0,0.36,.7,.7],'-')
+         [0.0,0.36,.65,.65],'-')
 plt.plot([3.0,5.0, 6.0,8.0],
-         np.multiply([0.0,0.36,.7,.7],0.6),'-')
+         np.multiply([0.0,0.36,.65,.65],0.7),'-')
 plt.ylim(0,.9)
 
 # %%
@@ -1287,9 +1477,9 @@ xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Stem.WtProportion'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed)
 plt.plot([3.0,5.0, 6.0,8.0],
-         [0.0,0.36,.7,.7],'-')
+         [0.0,0.36,.65,.65],'-')
 plt.plot([3.0,5.0, 6.0,8.0],
-         np.multiply([0.0,0.36,.7,.7],0.6),'-')
+         np.multiply([0.0,0.36,.65,.65],0.7),'-')
 plt.ylim(0,.9)
 
 # %%
@@ -1303,8 +1493,8 @@ xvar,yvar = 'Wheat.AboveGround.Wt','Wheat.Stem.Wt'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed.loc[Observed.loc[:,"Wheat.Phenology.Stage"]<8.5,:],cult_cols=True)
 xs = range(0,2500,10)
-const = .3
-power = 1.1
+const = .135
+power = 1.2
 ys = [const * np.power(x,power) for x in xs]
 plt.plot(xs,ys,'-')
 
@@ -1314,8 +1504,8 @@ xvar,yvar = 'Wheat.AboveGround.Wt','Wheat.Stem.Wt'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed.loc[Observed.loc[:,"Wheat.Phenology.Stage"]<8.5,:])
 xs = range(0,2500,10)
-const = .3
-power = 1.1
+const = .135
+power = 1.2
 ys = [const * np.power(x,power) for x in xs]
 plt.plot(xs,ys,'-')
 
@@ -1358,6 +1548,11 @@ experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 
 # %%
+xvar,yvar = 'Wheat.Phenology.AccumulatedTT','Wheat.AboveGround.Wt'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
+
+# %%
 xvar,yvar = 'Wheat.Phenology.AccumulatedTT','Wheat.Leaf.Live.Wt'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed)
@@ -1391,6 +1586,11 @@ Observed.loc[Observed.Experiment == e,'Wheat.SowingData.Cultivar'].drop_duplicat
 xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.SpecificAreaCanopy'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
 plotxy(experiments,xvar,yvar,Observed)
+
+# %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.SpecificAreaCanopy'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 
 # %%
 MetVars
@@ -1470,7 +1670,7 @@ for mv in MetVars:
 Observed.loc[:,'SLANormed'] = pd.to_numeric(Observed.loc[:,'Wheat.Leaf.SpecificAreaCanopy'])*Observed.loc[:,'RunningMean_IWeather.Radn']
 xvar,yvar = 'Wheat.Phenology.Stage','SLANormed'
 experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
-plotxy(experiments,xvar,yvar,Observed)
+plotxy(experiments,xvar,yvar,Observed,cult_cols=True)
 plt.plot([3,4,6,11],[.1,.1,.4,.4],'-',color='k')
 
 # %%
@@ -1591,14 +1791,14 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
-data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
+data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='any')
 experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
 pos=1
 graph = plt.figure(figsize=(10,20))
 for e in experiments:
-    ax = graph.add_subplot(33,3,pos)
+    ax = graph.add_subplot(30,3,pos)
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemNumberPerPlant'],Markers[mpos],color=Colors[cpos],label=e)
     plt.text(0.95,0.95,e,transform = ax.transAxes,horizontalalignment='right', verticalalignment='top')
@@ -1614,14 +1814,14 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
-data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
+data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='any')
 experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
 pos=1
 graph = plt.figure(figsize=(10,20))
 for e in experiments:
-    ax = graph.add_subplot(33,3,pos)
+    ax = graph.add_subplot(30,3,pos)
     exData = data.loc[data.Experiment == e,:]
     plt.plot(exData.loc[:,'Wheat.Phenology.Stage'],exData.loc[:,'Wheat.Leaf.StemPopulation'],Markers[mpos],color=Colors[cpos],label=e)
     plt.text(0.95,0.95,e,transform = ax.transAxes,horizontalalignment='right', verticalalignment='top')
@@ -1637,7 +1837,7 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']+['Experiment']
-data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
+data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='any')
 experiments = data.Experiment.drop_duplicates()
 cpos=1
 mpos=1
@@ -1660,7 +1860,7 @@ plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=3)
 
 # %%
 vars = ['Wheat.Leaf.StemPopulation','Wheat.Phenology.Stage','Wheat.Population','Wheat.Phenology.AccumulatedTT','Wheat.Leaf.StemNumberPerPlant']
-data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='all')
+data = Observed.loc[:,vars].dropna(subset= ['Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant'],how='any')
 MeanStemData = data.loc[data.loc[:,'Wheat.Phenology.Stage']>7.5,:].groupby('SimulationName').mean()
 MeanStemData.loc[:,'Experiment'] = [getValue(x,'Experiment',HarvestPred) for x in MeanStemData.index]
 
@@ -1941,6 +2141,9 @@ plt.plot(xs,ys,'-')
 ys = [funct(0.35,1.55,-0.00738,x)/100 for x in xs]                       
 plt.plot(xs,ys,'-')
 
+
+# %% [markdown]
+# # Grain wt and number
 
 # %%
 xvar,yvar = 'Wheat.Grain.Size','Wheat.Grain.NConc'
@@ -2472,3 +2675,26 @@ Observed.loc[:,"Wheat.Phenology.Stage"] > 5.5
 
 # %%
 list(Observed["Wheat.SowingData.Cultivar"].drop_duplicates().values)
+
+# %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.LiveWtProportion'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+
+# %%
+e
+
+# %%
+DailyPred.loc[:,'IWeather.MeanT'].dropna().groupby(level='Clock.Today').first()
+
+# %%
+xvar,yvar = 'Wheat.Phenology.Stage','Wheat.Leaf.LiveWtProportion'
+experiments = Observed.dropna(subset=[xvar,yvar]).Experiment.drop_duplicates()
+graph = plt.figure(figsize=(10,30))
+pos=1
+for m in ['IWeather.MinT']:
+    for e in experiments:
+        ax = graph.add_subplot(20,4,pos)
+        edat = DailyPred.loc[DailyPred.Experiment==e,m].dropna().groupby(level='Clock.Today').first()
+        plt.plot(edat)
+        plt.text(0.05,0.95,e,transform=ax.transAxes)
+        pos+=1

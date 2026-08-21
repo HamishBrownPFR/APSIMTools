@@ -66,13 +66,16 @@ BRANCHES = {
 # ======================
 
 # Options:
-RUN_BRANCHES = []                    # run nothing (use existing DBs)
-#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+#RUN_BRANCHES = []                    # run nothing (use existing DBs)
+RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
 
 SIM_FILES = [
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2025.apsimx'),
@@ -96,7 +99,9 @@ CONFIG = {
     "stage_var": "Wheat.Phenology.Stage",
     "stage_name_var": "Wheat.Phenology.CurrentStageName",
     "harvest_stage": "HarvestRipe",
-    "cultivar_col": "Wheat.SowingData.Cultivar"
+    "cultivar_col": "Wheat.SowingData.Cultivar",
+    "obs_table_name": "Observed",
+    "pred_table_name": "AnalysisReport"
 }
 
 validate_run_branches(config=CONFIG)
@@ -199,20 +204,32 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     # Add AnalysisReport to all Simulation nodes
     # ---------------------------------------------
+    #lines.append("delete all [Report]")
     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
+
+    # ---------------------------------------------
+    # Remove existing ObsPred table and add HarvestObsPred to data store
+    # ---------------------------------------------
+    #lines.append("delete all [PredictedObserved]")
+    
+    lines.append("add new PredictedObserved to [DataStore] name HarvestObsPred")
+    lines.append("[HarvestObsPred].PredictedTableName  = AnalysisReport")
+    lines.append("[HarvestObsPred].ObservedTableName  = Observed")
+    lines.append("[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
+    lines.append("[HarvestObsPred].FieldName2UsedForMatch  = Wheat.Phenology.CurrentStageName")
+        
+    lines.append("add new PredictedObserved to DataStore name DailyObsPred")
+    lines.append("[DailyObsPred].PredictedTableName  = AnalysisReport")
+    lines.append("[DailyObsPred].ObservedTableName  = Observed")
+    lines.append("[DailyObsPred].FieldNameUsedForMatch  = SimulationName")
+    lines.append("[DailyObsPred].FieldName2UsedForMatch  = Clock.Today")
     
     # ---------------------------------------------
     # Inject Spectral model into each simulation
     # ---------------------------------------------
-    lines.append("add [Spectral] to all [Zone]")
+    lines.append("delete all [Spectral]")
+    lines.append("add new Spectral to all [Zone]")
     
-    # ---------------------------------------------
-    # Hartogify cultivars
-    # ---------------------------------------------
-    lines.append("add new SetModelParamsBySimulation to [Zone] name ConstantBaseCv")
-    lines.append("[ConstantBaseCv].SetEventName = [Plant].PlantSowing")
-    lines.append(f"[ConstantBaseCv].ParameterFile = Inputs/{sim_file.stem}_ConstantPhenology.csv")
-
     # ---------------------------------------------
     # Save + run
     # ---------------------------------------------
