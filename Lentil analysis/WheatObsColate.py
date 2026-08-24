@@ -59,7 +59,43 @@ run_apsim
 
 
 # %% [markdown]
-# ## Globals
+# ## Grouping functions
+
+# %%
+def value_at_stage(target, tol_low, tol_high):
+
+    def fn(df, variable):
+
+        window = df.loc[
+            (df["Wheat.Phenology.Stage"] > tol_low) &
+            (df["Wheat.Phenology.Stage"] < tol_high)
+        ]
+
+        window = window[window[variable].notna()]
+
+        if window.empty:
+            return np.nan
+
+        idx = (
+            window["Wheat.Phenology.Stage"]
+            .sub(target)
+            .abs()
+            .idxmin()
+        )
+
+        return window.loc[idx, variable]
+
+    return fn
+
+def MeanValue(df, variable):
+    return df[variable].mean()
+
+def SumValues(df, variable):
+    return df[variable].sum()
+
+
+# %% [markdown]
+# ## data class
 
 # %%
 @dataclass
@@ -69,21 +105,64 @@ class AnalysisData:
     obs: pd.DataFrame
 
     def derive(self, name, fn):
-        # Pred always derived
-        self.pred[name] = fn(self.pred)
-        # Obs: only fill gaps
-        try:
-            derived = fn(self.obs)
-            if name in self.obs.columns:
-                self.obs[name] = (
-                    self.obs[name]
-                    .combine_first(derived)
-                )
-            else:
-                self.obs[name] = derived
-        except Exception:
-            pass
-        return self
+
+        derived = fn(self.obs)
+
+        if name in self.obs.columns:
+
+            self.obs[name] = (
+                self.obs[name]
+                .combine_first(derived)
+            )
+
+        else:
+
+            self.obs[name] = derived
+
+    def filter(self, fn):
+
+        filterMask = fn(self.obs)
+
+        return filterMask
+
+    def fill_triangular_set(self, top, left, right):
+
+        cols = [top, left, right]
+    
+        missing = [c for c in cols if c not in self.obs.columns]
+    
+        if missing:
+            print(f"Missing columns: {missing}")
+            return self
+    
+        a = self.obs[top]
+        b = self.obs[left]
+        c = self.obs[right]
+    
+        # fill top
+        self.obs[top] = a.combine_first(b * c)
+    
+        # fill left
+        self.obs[left] = b.combine_first(
+            a.div(c.replace(0, np.nan))
+        )
+    
+        # fill right
+        self.obs[right] = c.combine_first(
+            a.div(b.replace(0, np.nan))
+        )
+        
+    def aggregate_sim_values(self, var, outName, source="obs", fn = MeanValue, filter_fn = None):
+        df = getattr(self, source)
+        mask = pd.Series(True, index=df.index)
+        if filter_fn:
+            mask = filter_fn(df)
+    
+        grouped = (df.loc[mask].groupby("Simulation.Name"))
+    
+        values = grouped.apply(lambda g: fn(g, var))
+    
+        self.obs[outName] = (self.obs["Simulation.Name"].map(values))
 
     def summary(self):
         print(f"Pred rows : {len(self.pred):,}")
@@ -91,6 +170,7 @@ class AnalysisData:
 
         print(f"Pred sims : {self.pred['SimulationID'].nunique():,}")
         print(f"Obs sims  : {self.obs['SimulationID'].nunique():,}")
+
 
 ANALYSIS_KEYS = [
     "file",
@@ -234,7 +314,7 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branch":  "UoM_Wheat",
-    "run_sims": True,
+    "run_sims": False,
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -415,6 +495,21 @@ def drop_unused_cols(data):
     'Wleat.Leaf.Wt']
     
     data.obs = data.obs.loc[:,Keep_columns].copy()
+
+    remove_cols = [
+    'branch',
+    'file',
+    'SimulationID',
+    'Clock.Today'
+    ]
+    
+    numeric_cols = [
+        c for c in Keep_columns
+        if c not in remove_cols
+    ]
+
+    for c in numeric_cols:
+        data.obs[c] = pd.to_numeric(data.obs[c], errors="coerce")
     return data
 
 data = drop_unused_cols(data)
@@ -501,6 +596,7 @@ def fill_obs_metadata(data):
         "Experiment",
         "Simulation.Name",
         "Wheat.SowingData.Cultivar",
+        "Wheat.Population",
         "IWeather.Latitude",
         "IWeather.Longitude"
     ]
@@ -1306,6 +1402,8 @@ def add_weather_predictors(
     derived_vars = []
 
     mean_vars = [
+        "Wheat.Phenology.PTQ",
+        "Wheat.Phenology.ThermalTime",
         "IWeather.MinT",
         "IWeather.MaxT",
         "IWeather.MeanT",
@@ -1389,6 +1487,236 @@ data, met_vars = add_weather_predictors(data, mean_windows=(7, 30))
 data = attach_pred_vars(data, met_vars)
 
 # %% [markdown]
+# # Derive additional data
+
+# %% [markdown]
+# ## Agregate variables
+
+# %%
+data.derive('Wheat.Leaf.Wt',
+                lambda df:
+            df["Wheat.Leaf.Live.Wt"] +
+            df["Wheat.Leaf.Dead.Wt"])
+
+# %%
+data.derive('Wheat.AboveGround.Wt',
+                lambda df:
+            df["Wheat.Leaf.Wt"] +
+            df["Wheat.Stem.Wt"] +
+            df["Wheat.Spike.Wt"] +
+            df["Wheat.Grain.Wt"])
+
+# %%
+data.derive('Wheat.Leaf.StemNumberPerPlant',
+                lambda df:
+        df['Wheat.Leaf.StemNumberPerPlant.StemNumberPerPlant.Total.Tillers'] + 1)
+
+# %%
+data.derive('Wheat.StemPlusSpikeWt',
+                lambda df:
+            df["Wheat.Stem.Wt"] +
+            df["Wheat.Spike.Wt"])
+
+# %% [markdown]
+# ## Complete traingular sets
+
+# %% [markdown]
+# The variable at the top of the triangle is derived as to product of the two variables at the bottom.
+# The variables at the bottom are derived as the top variable divided the the other bottom variable 
+#         A
+#        / \
+#       /   \
+#      B  x  C
+#
+# A = B * C
+#
+# B = A / C
+#
+# C = A / B
+
+# %%
+data.fill_triangular_set('Wheat.Leaf.StemPopulation',
+                            'Wheat.Leaf.StemNumberPerPlant',
+                            'Wheat.Population')
+
+# %%
+data.fill_triangular_set('Wheat.Leaf.LAI',
+                            'Wheat.Leaf.Live.Wt',
+                            'Wheat.Leaf.SpecificAreaCanopy')
+
+# %%
+data.fill_triangular_set('Wheat.AboveGround.N',
+                            'Wheat.AboveGround.Wt',
+                            'Wheat.AboveGround.NConc')
+
+# %%
+data.fill_triangular_set('Wheat.Leaf.Live.N',
+                            'Wheat.Leaf.Live.Wt',
+                            'Wheat.Leaf.Live.NConc')
+
+# %%
+data.fill_triangular_set('Wheat.Leaf.Dead.N',
+                            'Wheat.Leaf.Dead.Wt',
+                            'Wheat.Leaf.Dead.NConc')
+
+# %%
+data.fill_triangular_set('Wheat.Stem.N',
+                            'Wheat.Stem.Wt',
+                            'Wheat.Stem.NConc')
+
+# %%
+data.fill_triangular_set('Wheat.Ear.N',
+                            'Wheat.Ear.Wt',
+                            'Wheat.Ear.NConc')
+
+# %%
+data.fill_triangular_set('Wheat.Spike.N',
+                            'Wheat.Spike.Wt',
+                            'Wheat.Spike.NConc')
+
+# %% [markdown]
+# ## Calculate Ratios
+
+# %%
+data.derive(
+    "Spike/Stem",
+    lambda df:
+        df["Wheat.Spike.Wt"] /
+        df["Wheat.Stem.Wt"]
+)
+
+# %%
+data.derive('Wheat.Spike.WtProportion',
+                lambda df:
+        df["Wheat.Spike.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %%
+data.derive('Wheat.Stem.WtProportion',
+                lambda df:
+        df["Wheat.Stem.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %%
+data.derive('Wheat.Leaf.WtProportion',
+                lambda df:
+        df["Wheat.Leaf.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %%
+data.derive('Wheat.Leaf.LiveWtProportion',
+                lambda df:
+        df["Wheat.Leaf.Live.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %%
+data.derive('Wheat.Leaf.DeadWtProportion',
+                lambda df:
+        df["Wheat.Leaf.Dead.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %%
+data.derive('Wheat.Ear.WtProportion',
+                lambda df:
+        df["Wheat.Ear.Wt"] /
+        df["Wheat.AboveGround.Wt"])
+
+# %% [markdown]
+# ## Met normalisations
+
+# %%
+data.derive('SLA * Radn',
+                lambda df:
+        df["Wheat.Leaf.SpecificAreaCanopy"] * 
+        df['IWeather.Radn.Mean30'])
+
+# %%
+data.derive('SLA * MinT',
+                lambda df:
+        df["Wheat.Leaf.SpecificAreaCanopy"] * 
+        df['IWeather.MinT.Mean7'])
+
+# %%
+data.derive('SLA * MaxT',
+                lambda df:
+        df["Wheat.Leaf.SpecificAreaCanopy"] * 
+        df['IWeather.MaxT.Mean7'])
+
+# %%
+data.derive('SLA * PTQ',
+                lambda df:
+        df["Wheat.Leaf.SpecificAreaCanopy"] * 
+        df['Wheat.Phenology.PTQ.Mean7'])
+
+# %% [markdown]
+# ## Agregate sim values
+
+# %%
+data.aggregate_sim_values('Wheat.Leaf.StemNumberPerPlant','Wheat.Leaf.StemNumberPerPlant.Final',
+                          filter_fn = lambda df: df["Wheat.Phenology.Stage"] > 7.5)
+
+# %%
+data.aggregate_sim_values('Wheat.Leaf.StemPopulation','Wheat.Leaf.StemPopulation.Final',
+                   filter_fn = lambda df: df["Wheat.Phenology.Stage"] > 7.5)
+
+# %%
+data.aggregate_sim_values('Wheat.Stem.Wt','Wheat.Stem.Wt.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
+data.aggregate_sim_values('Wheat.Spike.Wt','Wheat.Spike.Wt.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
+data.derive('Wheat.StemPlusSpikeWt.Anthesis',
+                lambda df:
+            df["Wheat.Stem.Wt.Anthesis"] +
+            df["Wheat.Spike.Wt.Anthesis"])
+
+# %%
+data.derive('Wheat.StemPlusSpikeWt.Anthesis',
+            lambda df: df['Wheat.Stem.Wt.Anthesis'] * 1.4) 
+            #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
+
+# %%
+data.derive('Wheat.GrainNoPerGofStem',
+            lambda df: df['Wheat.Grain.Number']/df['Wheat.StemPlusSpikeWt.Anthesis'] ) 
+            #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
+
+# %%
+data.aggregate_sim_values('Wheat.Phenology.PTQ','Wheat.Phenology.PTQ.Critical',
+                   filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('IWeather.Radn','IWeather.Radn.Critical',
+                          source = 'pred',
+                          fn = SumValues,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('IWeather.MinT','IWeather.MinT.Critical',
+                          source = 'pred',
+                          fn = MeanValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('IWeather.MaxT','IWeather.MaxT.Critical',
+                          source = 'pred',
+                          fn = MeanValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('IWeather.MeanT','IWeather.MeanT.Critical',
+                          source = 'pred',
+                          fn = MeanValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %% [markdown]
 # # Graphing
 
 # %% [markdown]
@@ -1420,6 +1748,9 @@ plot_order = {
     'WWHI': 3
 }
 
+
+# %% [markdown]
+# ## Marker plot xy function
 
 # %%
 def add_plot_legend(ax=None):
@@ -1470,50 +1801,73 @@ def add_plot_legend(ax=None):
 # %%
 def plotxy_markers(yvar, 
            xvar = 'Wheat.Phenology.Stage',
+           filter_fn = None,
            color_by = "DevelopmentType",
            marker_by = 'ProjectGroup',
            color_map = DevCols,
            marker_map = TestSetMarkers,
            alpha_map = TestSetAlphas,
-           size_map = TestSetSizes):
-    fig, ax = plt.subplots()
-    cpos=1
-    mpos=1
+           size_map = TestSetSizes, 
+           addLeg = True,
+           xmin = 2, xmax = 12,
+           ax=None):
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    filtered_data = data.obs
+    if filter_fn:
+        Mask = data.filter(filter_fn)
+        filtered_data = data.obs.loc[Mask,:]
+    
     for m in marker_map.keys():
-        plotData = data.obs.loc[data.obs.loc[:,marker_by] == m,[color_by, xvar,yvar]].dropna()
+        plotData = filtered_data.loc[data.obs.loc[:,marker_by] == m,[color_by, xvar,yvar]].dropna()
         color_ix =  plotData.loc[:,color_by]
         colors = color_ix.map(lambda c: color_map[c])
         marker = marker_map[m]
         alpha = alpha_map[m]
         size = size_map[m]
-        plt.scatter(plotData[xvar],plotData[yvar],c=colors, marker=marker, alpha = alpha, s = size)
+        ax.scatter(plotData[xvar],plotData[yvar],c=colors, marker=marker, alpha = alpha, s = size)
+    if addLeg:
         add_plot_legend(ax)
-    plt.ylabel(yvar)
-    plt.xlabel(xvar)
+    if xmax and xmin:
+        ax.set_xlim(xmin,xmax)
+    ax.set_ylabel(yvar)
+    ax.set_xlabel(xvar)
+    return ax
 
 
-# %%
-plotxy_markers('Wheat.Stem.Wt')
-
+# %% [markdown]
+# ## Experiment plot function
 
 # %%
 def plotxy(yvar,
             xvar = "Wheat.Phenology.Stage",
+            filter_fn = None,
             color_by = 'Experiment', 
             addLeg = True,
-            ncols=np.nan):
-    
-    fig, ax = plt.subplots()
+            ncols=np.nan,
+            xmin = 2, xmax = 12,
+           ax=None):
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
     cpos=1
     mpos=1
-
-    plotData = data.obs.loc[:,[color_by,xvar,yvar]].dropna()
+    
+    Mask = pd.Series(True, index=data.obs.index)
+    if filter_fn:
+        Mask = data.filter(filter_fn)
+    
+    plotData = data.obs.loc[Mask,[color_by,xvar,yvar]].dropna()
+        
     groups = plotData.loc[:,color_by].drop_duplicates()
     for g in groups:
         subPlotData = plotData.loc[plotData.Experiment==g,:]
         xdata = pd.to_numeric(subPlotData.loc[:,xvar])
         ydata = pd.to_numeric(subPlotData.loc[:,yvar])
-        plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=g)
+        ax.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=g)
         cpos+=1
         mpos+=1
         if mpos>13:
@@ -1523,10 +1877,603 @@ def plotxy(yvar,
     if addLeg == True:
         if np.isnan(ncols):
              ncols = np.ceil(groups.size/17)
+        ax.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=ncols)
+    if xmax and xmin:
+        ax.set_xlim(xmin,xmax)
+    ax.set_ylabel(yvar)
+    ax.set_xlabel(xvar)
+    return ax
+
+
+# %% [markdown]
+# ## Pannel for variable
+
+# %%
+def plot_panel(
+    yvar,
+    xvars,
+    ncols=3,
+    markers=False,
+    **kwargs
+):
+
+    nplots = len(xvars)
+    nrows = int(np.ceil(nplots / ncols))
+
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(5*ncols, 4*nrows),
+        constrained_layout=True
+    )
+
+    axes = np.array(axes).flatten()
+
+    for ax, xvar in zip(axes, xvars):
+        if markers == False:
+            plotxy(yvar=yvar,xvar=xvar,ax=ax,addLeg=False,xmax=None,**kwargs)
+        else:
+            plotxy_markers(yvar=yvar,xvar=xvar,ax=ax,xmax=None,addLeg=False,**kwargs)
+
+        ax.text(0.05,0.95,xvar,transform=ax.transAxes)
+
+    # Hide unused panels
+    for ax in axes[nplots:]:
+        ax.set_visible(False)
+
+    return fig
+
+
+# %% [markdown]
+# ## Pannel for experiment
+
+# %%
+def plotxy_experments(yvar,
+                      xvar = 'Wheat.Phenology.Stage',
+                      ncols = 4):
+    plotData = data.obs.loc[:,['Experiment','Simulation.Name',xvar,yvar]].dropna(how='any')
+    experiments = plotData.Experiment.drop_duplicates()
+    nplots = len(experiments)
+    nrows = int(np.ceil(nplots / ncols))
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(3*ncols, 3*nrows),
+        constrained_layout=True
+    )
+    ymax = plotData.loc[:,yvar].max()*1.1
+    ymin = plotData.loc[:,yvar].min()*0.9
+    xmax = plotData.loc[:,xvar].max()*1.1
+    xmin = plotData.loc[:,xvar].min()*0.9
+    axes = np.array(axes).flatten()
+    for ax, e in zip(axes, experiments):
+        setdata = plotData.loc[plotData.Experiment==e,:]
+        sims = setdata.loc[:,'Simulation.Name'].drop_duplicates()
+        colors = [Colors[x] for x in range(1,len(sims)+1)]
+        cmap = dict(zip(sims,colors))
+        colser = [cmap[x] for x in setdata.loc[:,'Simulation.Name']]
+        ax.scatter(setdata[xvar],setdata[yvar],c=colser,s=100) 
+        ax.text(0.05,0.95,e,transform=ax.transAxes)
+        ax.set_xlim(xmin,xmax)
+        ax.set_ylim(ymin,ymax)
+    
+    # Hide unused panels
+    for ax in axes[nplots:]:
+        ax.set_visible(False)
+
+
+# %% [markdown]
+# ## calculated means then graph xy
+
+# %%
+def first_nonblank(s):
+    s = s.replace("", np.nan).dropna()
+    return s.iloc[0] if len(s) else np.nan
+
+def xyMeans(xvar,yvar,    
+    ncols=2,
+    addLeg = True,
+    cult_cols=True):
+
+    vars = [xvar,yvar,'Simulation.Name','Experiment','Wheat.SowingData.Cultivar']
+    
+    All = data.obs.loc[:,vars]
+    means = All.groupby('Simulation.Name',as_index=False).agg({
+        xvar: "mean",
+        yvar: "mean",
+        "Experiment": first_nonblank,
+        "Wheat.SowingData.Cultivar": first_nonblank}).dropna()
+    
+    fig, ax = plt.subplots()
+    cpos=1
+    mpos=1
+    experiments = means.Experiment.drop_duplicates()
+    for e in experiments:
+        plotData = means.loc[means.Experiment==e,:]
+        xdata = pd.to_numeric(plotData.loc[:,xvar])
+        ydata = pd.to_numeric(plotData.loc[:,yvar])
+        if cult_cols==False:
+            plt.plot(xdata,ydata,Markers[mpos],color=Colors[cpos],label=e)
+            cpos+=1
+            mpos+=1
+            if mpos>13:
+                mpos=1
+            if cpos>28:
+                cpos=1
+        else:
+            cultivars =  plotData.loc[:,"Wheat.SowingData.Cultivar"]
+            default_color = "lightgrey"
+            colors = cultivars.map(
+                lambda c: DevCols[DevMap[c]]
+                if c in DevMap
+                else default_color)
+            e_marker = TestSetMarkers[TestSetMap[e]]
+            e_alpha = TestSetAlphas[TestSetMap[e]]
+            e_size = TestSetSizes[TestSetMap[e]]
+            plt.scatter(xdata,ydata,c=colors, marker=e_marker,alpha = e_alpha,s = e_size)
+            add_plot_legend(ax)
+            addLeg = False
+    if addLeg == True:
+        if np.isnan(ncols):
+             ncols = np.ceil(experiments.size/17)
         plt.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=ncols)
     plt.ylabel(yvar)
     plt.xlabel(xvar)
 
 
+# %% [markdown]
+# # Spike Wt
+
+# %% [markdown]
+# ## Spike/Stem
+
 # %%
-plotxy('Wheat.Stem.Wt')
+plotxy_markers("Spike/Stem")
+plt.plot([5.8,6.0,7.0,8.0,11.0],
+         [0.0,.02,.35,.45,.45],'-')
+
+# %%
+plotxy("Spike/Stem")
+plt.plot([5.8,6.0,7.0,8.0,11.0],
+         [0.0,.02,.35,.4,.4],'-')
+
+# %% [markdown]
+# ## Spike/totalDM
+
+# %%
+plotxy_markers('Wheat.Spike.WtProportion')
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         [0,0,0.04,.22,.22],'-')
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         np.multiply([0,0,0.04,.22,.22],0.75),'-')
+
+# %%
+plotxy('Wheat.Spike.WtProportion')
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         [0,0,0.04,.22,.22],'-')
+plt.plot([3.0,5.5, 6,7.0,8.0],
+         np.multiply([0,0,0.04,.22,.22],0.75),'-')
+
+# %% [markdown]
+# # Stem Wt
+
+# %% [markdown]
+# ## proportion
+
+# %%
+plotxy_markers('Wheat.Stem.WtProportion')
+plt.plot([3.0,5.0, 6.0,8.0],
+         [0.0,0.36,.65,.65],'-')
+plt.plot([3.0,5.0, 6.0,8.0],
+         np.multiply([0.0,0.36,.65,.65],0.7),'-')
+
+# %%
+plotxy('Wheat.Stem.WtProportion')
+plt.plot([3.0,5.0, 6.0,8.0],
+         [0.0,0.36,.65,.65],'-')
+plt.plot([3.0,5.0, 6.0,8.0],
+         np.multiply([0.0,0.36,.65,.65],0.7),'-')
+plt.ylim(0,.9)
+
+# %% [markdown]
+# ## Allometric
+
+# %%
+plotxy_markers('Wheat.Stem.Wt',
+               xvar='Wheat.AboveGround.Wt',
+               filter_fn=lambda df: df["Wheat.Phenology.Stage"] < 8.5,
+              xmax = 3000)
+xs = range(0,2800,10)
+const = .135
+power = 1.2
+ys = [const * np.power(x,power) for x in xs]
+plt.plot(xs,ys,'-')
+
+# %% [markdown]
+# # Leaf Wt
+
+# %% [markdown]
+# ## Total
+
+# %%
+plotxy_markers('Wheat.Leaf.WtProportion')
+plt.plot([3.0,4.0,5.0,6.0,8.0],
+         [1,.9,.7,.3,.15],'-')
+
+# %%
+plotxy_markers('Wheat.Leaf.Wt',
+              xvar = 'Wheat.Phenology.AccumulatedTT',
+              xmax = 3100)
+
+# %%
+plotxy_markers('Wheat.Leaf.Wt')
+
+# %% [markdown]
+# ## Live
+
+# %%
+plotxy_markers('Wheat.Leaf.LiveWtProportion')
+plt.plot([3.0,4.0,5.0,6.0,8.0],
+         [1,.9,.7,.3,.15],'-')
+
+# %%
+plotxy_markers('Wheat.Leaf.Live.Wt',
+              xvar = 'Wheat.Phenology.AccumulatedTT',
+              xmax = 3100)
+
+# %%
+plotxy_markers('Wheat.Leaf.Live.Wt')
+
+# %% [markdown]
+# ## Dead Leaf
+
+# %%
+plotxy_markers('Wheat.Leaf.DeadWtProportion')
+
+# %%
+plotxy_markers('Wheat.Leaf.Dead.Wt',
+              xvar = 'Wheat.Phenology.AccumulatedTT',
+              xmax = 3100)
+
+# %%
+plotxy_markers('Wheat.Leaf.Dead.Wt')
+
+# %% [markdown]
+# # Ear Wt
+
+# %%
+plotxy_markers('Wheat.Ear.WtProportion')
+plt.plot([3.0,5.8,7.0,8.0,9.0,10,11],
+         [0,0,.15,.2,.25,0.6,0.6],'-')
+
+# %% [markdown]
+# # Leaf Area Index
+
+# %%
+plotxy_markers('Wheat.Leaf.LAI',
+              xvar = 'Wheat.Phenology.AccumulatedTT',
+              xmax = 3100)
+
+# %%
+plotxy_markers('Wheat.Leaf.LAI')
+
+# %% [markdown]
+# # Specific Leaf Area
+
+# %% [markdown]
+# ## Raw
+
+# %%
+plotxy_markers('Wheat.Leaf.SpecificAreaCanopy')
+plt.ylim(0,0.04)
+
+# %%
+plotxy('Wheat.Leaf.SpecificAreaCanopy')
+plt.ylim(0,0.04)
+
+# %%
+plotxy_markers('Wheat.Leaf.SpecificAreaCanopy',
+              xvar= 'Wheat.Phenology.AccumulatedTT', 
+              xmax = 3100)
+plt.ylim(0,0.04)
+
+# %%
+RMeanVars = [
+'Wheat.Phenology.PTQ.Mean30',
+'Wheat.Phenology.ThermalTime.Mean30',
+'IWeather.MinT.Mean30',
+'IWeather.MaxT.Mean30',
+'IWeather.MeanT.Mean30',
+'IWeather.Radn.Mean30'
+]
+
+fig = plot_panel(
+    'Wheat.Leaf.SpecificAreaCanopy',
+    RMeanVars,
+    ncols=2,
+    markers=True)
+
+
+# %% [markdown]
+# ## Radn normed 
+
+# %%
+plotxy_markers('SLA * Radn')
+plt.ylim(0,0.8)
+
+# %%
+plotxy_markers('SLA * Radn',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.8)
+
+# %%
+plotxy('SLA * Radn',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.8)
+
+# %% [markdown]
+# ## MinT normed 
+
+# %%
+plotxy_markers('SLA * MinT')
+plt.ylim(0,0.6)
+
+# %%
+plotxy_markers('SLA * MinT',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.6)
+
+# %%
+plotxy('SLA * MinT',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.6)
+
+# %% [markdown]
+# ## MaxT normed 
+
+# %%
+plotxy_markers('SLA * Radn')
+plt.ylim(0,0.8)
+
+# %%
+plotxy_markers('SLA * MaxT',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.8)
+
+# %%
+plotxy('SLA * MaxT',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.8)
+
+# %% [markdown]
+# ## PTQ normed 
+
+# %%
+plotxy_markers('SLA * PTQ')
+plt.ylim(0,0.1)
+
+# %%
+plotxy_markers('SLA * PTQ',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.1)
+
+# %%
+plotxy('SLA * PTQ',
+              xvar='Wheat.Phenology.AccumulatedTT',
+              xmax=3100)
+plt.ylim(0,0.1)
+
+# %% [markdown]
+# ## All experiments
+
+# %%
+plotxy_experments('Wheat.Leaf.SpecificAreaCanopy')
+
+# %% [markdown]
+# # Stem Number
+
+# %% [markdown]
+# ## Stem Number per plant
+
+# %%
+plotxy_markers('Wheat.Leaf.StemNumberPerPlant')
+
+# %%
+plotxy('Wheat.Leaf.StemNumberPerPlant')
+
+# %%
+plotxy_experments('Wheat.Leaf.StemNumberPerPlant')
+
+# %% [markdown]
+# ## Stem Population
+
+# %%
+plotxy_markers('Wheat.Leaf.StemPopulation')
+
+# %%
+plotxy('Wheat.Leaf.StemPopulation')
+
+# %%
+plotxy_experments('Wheat.Leaf.StemPopulation')
+
+# %% [markdown]
+# ## relationships
+
+# %%
+xyMeans(
+xvar = 'Wheat.Population',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',)
+xs = range(40,300)
+ys = [1000/(x+0) for x in xs]
+plt.plot(xs,ys,'-',color='k',label='y=600/x')
+
+# %%
+xyMeans(
+xvar = 'Wheat.Population',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
+cult_cols=False)
+xs = range(40,300)
+ys = [1000/(x+0) for x in xs]
+plt.plot(xs,ys,'-',color='k',label='y=600/x')
+
+# %%
+xyMeans(
+xvar = 'Wheat.Population',
+yvar = 'Wheat.Leaf.StemPopulation',
+cult_cols=False)
+xs = [0,300]
+ys = [600,600]
+plt.plot(xs,ys,'-',color='k',label='y=x')
+
+# %%
+xyMeans(
+xvar = 'Wheat.Stem.Wt.Anthesis',
+yvar = 'Wheat.Leaf.StemPopulation',
+cult_cols=False)
+
+# %%
+xyMeans(
+xvar = 'Wheat.Stem.Wt.Anthesis',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
+cult_cols=True)
+
+# %% [markdown]
+# # Organ N content
+
+# %% [markdown]
+# ## Leaf
+
+# %%
+plotxy_markers('Wheat.Leaf.Live.NConc')
+plt.plot([3.0,5.0,5.5,9.5,11.0],
+         [0.055,.055,.045,.035,.005],'-',color='k')
+
+# %%
+plotxy_markers('Wheat.Leaf.Dead.NConc')
+plt.plot([3.0,5.0,5.5,9.5,11.0],
+         [0.055,.055,.045,.035,.005],'-',color='k')
+
+# %% [markdown]
+# ## Stem
+
+# %%
+plotxy_markers('Wheat.Stem.NConc')
+plt.plot([3.0,4.5,6.0,9.5,11.0],
+         [0.055,.055,.02,.012,.005],'-',color='k')
+
+# %%
+plotxy('Wheat.Stem.NConc')
+plt.plot([3.0,4.5,6.0,9.5,11.0],
+         [0.055,.055,.02,.012,.005],'-',color='k')
+
+# %% [markdown]
+# ## Ear
+
+# %%
+plotxy('Wheat.Ear.NConc')
+plt.plot([6.0,11.0],
+         [0.02,.02],'-',color='k')
+plt.ylim(0,.08)
+
+# %%
+plotxy('Wheat.Spike.NConc')
+plt.plot([6.0,8.5,10.2],
+         [0.024,.024,.005],'-',color='k')
+plt.ylim(0,.03)
+
+# %% [markdown]
+# ## AboveGround
+
+# %%
+plotxy('Wheat.AboveGround.NConc',xvar='Wheat.AboveGround.Wt',xmin=0,xmax=3100,ncols=2)
+def funct(b1,b2,b3,x):
+    return b1 + np.exp(b2+(b3*x))
+xs = range(0,3000,10)
+ys = [funct(0.81,1.68,-0.00152,x)/100 for x in xs]                       
+plt.plot(xs,ys,'-',color='k')
+ys = [funct(0.35,1.55,-0.00738,x)/100 for x in xs]                       
+plt.plot(xs,ys,'--',color='k')
+
+# %%
+plotxy_markers('Wheat.AboveGround.NConc',xvar='Wheat.AboveGround.Wt',xmin=0,xmax=3100)
+def funct(b1,b2,b3,x):
+    return b1 + np.exp(b2+(b3*x))
+xs = range(0,3000,10)
+ys = [funct(0.81,1.68,-0.00152,x)/100 for x in xs]                       
+plt.plot(xs,ys,'-',color='k')
+ys = [funct(0.35,1.55,-0.00738,x)/100 for x in xs]                       
+plt.plot(xs,ys,'--',color='k')
+
+# %% [markdown]
+# ## Grain
+
+# %%
+plotxy_markers('Wheat.Grain.NConc',xvar='Wheat.Grain.Wt',xmin=0,xmax=3100)
+
+# %%
+plotxy_markers('Wheat.Grain.NConc',xvar='Wheat.Grain.Size',xmin=0,xmax=3100)
+
+# %% [markdown]
+# # Grain Number
+
+# %%
+plotxy_markers('Wheat.AboveGround.NConc',xvar='Wheat.AboveGround.Wt',xmin=0,xmax=3100)
+
+# %%
+xyMeans(
+xvar = 'Wheat.StemPlusSpikeWt.Anthesis',
+yvar = 'Wheat.Grain.Number',
+cult_cols=True)
+xs=[0,1600]
+plt.plot(xs,np.multiply(xs,26),'-')
+plt.plot(xs,np.multiply(xs,26*1.4),'--')
+plt.plot(xs,np.multiply(xs,26*.6),'--')
+plt.ylim(0,40000)
+
+# %%
+xyMeans(
+xvar = 'Wheat.StemPlusSpikeWt.Anthesis',
+yvar = 'Wheat.Grain.Number',
+cult_cols=False)
+xs=[0,1600]
+plt.plot(xs,np.multiply(xs,20),'-')
+plt.plot(xs,np.multiply(xs,26),'--')
+plt.plot(xs,np.multiply(xs,12),'--')
+plt.ylim(0,40000)
+
+# %%
+CMeanVars = [
+'Wheat.Phenology.PTQ.Critical',
+'IWeather.MinT.Critical',
+'IWeather.MaxT.Critical',
+'IWeather.MeanT.Critical',
+'IWeather.Radn.Critical'
+]
+
+fig = plot_panel(
+    'Wheat.Grain.Number',
+    CMeanVars,
+    ncols=2,
+    markers=True)
+
+# %%
+CMeanVars = [
+'Wheat.Phenology.PTQ.Critical',
+'IWeather.MinT.Critical',
+'IWeather.MaxT.Critical',
+'IWeather.MeanT.Critical',
+'IWeather.Radn.Critical'
+]
+
+fig = plot_panel(
+    'Wheat.GrainNoPerGofStem',
+    CMeanVars,
+    ncols=2,
+    markers=True)

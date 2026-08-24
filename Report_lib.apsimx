@@ -130,7 +130,8 @@
         "[Wheat].Phenology.Stage",
         "[Wheat].Phenology.ThermalTime",
         "[Wheat].Phenology.Zadok.Stage",
-        "[Wheat].SowingData.Cultivar"
+        "[Wheat].SowingData.Cultivar",
+        "[Wheat].Population"
       ],
       "EventNames": [
         "[Clock].DoReport"
