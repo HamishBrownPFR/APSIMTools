@@ -953,12 +953,6 @@ plot_order = {
     'WWHI': 3
 }
 
-# %%
-newSet = pd.read_clipboard()
-
-# %%
-newDict = dict(zip(newSet['Experiment'],newSet['Set']))
-
 
 # %% [markdown]
 # ## Graphing functions
@@ -2155,6 +2149,7 @@ def plotxySizeScaled(experiments,xvar,yvar,data,sizeVar,sizeScaler,addLeg = True
         xdata = pd.to_numeric(plotData.loc[:,xvar])
         ydata = pd.to_numeric(plotData.loc[:,yvar])
         sizeVal = pd.to_numeric(plotData.loc[:,sizeVar])/sizeScaler
+        sizeVal = sizeVal[~sizeVal.index.duplicated(keep='first')]
         for s in xdata.index:
             label = e if s == xdata.index[0] else None
             plt.plot(xdata[s],ydata[s],Markers[mpos],color=Colors[cpos], ms=sizeVal[s],label=label)
@@ -2235,9 +2230,6 @@ for sim in AnthesisStemWt.index:
 AnthesisStemWt.loc[:,'PotGNStemWt'] = AnthesisStemWt.loc[:,'Wheat.StemPlusSpikeWt'] * 24
 AnthesisStemWt.loc[:,'PotGNPTQ'] = -16153 + AnthesisStemWt.loc[:,'Wheat.Phenology.PTQCritical'] * 13461
 AnthesisStemWt.loc[:,'PotGN'] = np.minimum(AnthesisStemWt.loc[:,'PotGNStemWt'],AnthesisStemWt.loc[:,'PotGNPTQ'])
-
-# %%
-AnthesisStemWt
 
 # %%
 experiments = AnthesisStemWt.Experiment.drop_duplicates()
