@@ -444,9 +444,9 @@ DistinctColors = {
      8: "#F781BF",  # Pink
      9: "#17BECF",  # Cyan
     10: "#BCBD22",  # Olive
-    11: "#7F7F7F",  # Grey
-    12: "#1B9E77",  # Teal
-    13: "#D95F02",  # Dark Orange
+    11: "#1B9E77",  # Teal
+    12: "#D95F02",  # Dark Orange
+    13: "#E7298A" # magenta
 }
     
 def build_experiment_style_maps(obs_df,
