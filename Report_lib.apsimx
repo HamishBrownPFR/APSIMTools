@@ -109,6 +109,7 @@
       "$type": "Models.Report, Models",
       "VariableNames": [
         "[Clock].Today",
+        "[Clock].Today.DayOfYear",
         "[Simulation].Name",
         "[IWeather].MinT",
         "[IWeather].MaxT",
