@@ -165,7 +165,7 @@ class AnalysisData:
     
         values = grouped.apply(lambda g: fn(g, var))
     
-        self.obs[outName] = (self.obs["Simulation.Name"].map(values))
+        self.obs[outName] = (self.obs["Simulation.Name"].map(values))        
 
     def summary(self):
         print(f"Pred rows : {len(self.pred):,}")
@@ -1125,8 +1125,8 @@ DevMap = {
 "Atlanta":"Spring",
 "Axe":"Spring",
 "Batavia":"Spring",
-"Battenspring":"Spring",
-"Batten":"Winter",
+"BattenSpring":"Spring",
+"BattenWinter":"Winter",
 "Beaufort":"Spring",
 "Bennett":"Winter",
 "BigRed":"Winter",
@@ -1141,7 +1141,7 @@ DevMap = {
 "Conquest":"Spring",
 "Corack":"Spring",
 "Crusader":"Spring",
-"Crw247":"Spring",
+"CRW247":"Spring",
 "Cutlass":"Spring",
 "Dekan":"Spring",
 "Derrimut":"Spring",
@@ -1151,7 +1151,7 @@ DevMap = {
 "Einstein":"Winter",
 "Ellison":"Spring",
 "Forrest":"Spring",
-"Gamenya":"Spring",
+"gamenya":"Spring",
 "Gauntlet":"Spring",
 "Gladius":"Spring",
 "Gorgan":"Spring",
@@ -1211,8 +1211,8 @@ DevMap = {
 "Sunstate":"Spring",
 "Suntop":"Spring",
 "Trojan":"Spring",
-"Uom001_3_47":"Winter",
-"Uom001_9_1":"Winter",
+"UOM001_3_47":"Winter",
+"UOM001_9_1":"Winter",
 "Ventura":"Spring",
 "Voltron":"Winter",
 "Wakanui":"Winter",
@@ -2355,7 +2355,8 @@ plt.plot([3.0,5.0, 6.0,8.0],
 
 # %%
 xyPlot('Wheat.Stem.WtProportion',
-      style=experiment_style, leg_ncols=3)
+      style=experiment_style, leg_ncols=3,
+      filter_fn=lambda df: df["ProjectGroup"] == "GxExM")
 plt.plot([3.0,5.0, 6.0,8.0],
          [0.0,0.36,.65,.65],'-')
 plt.plot([3.0,5.0, 6.0,8.0],
@@ -2507,7 +2508,8 @@ RMeanVars = [
 'IWeather.MinT.Mean7',
 'IWeather.MaxT.Mean7',
 'IWeather.MeanT.Mean7',
-'IWeather.Radn.Mean7'
+'IWeather.Radn.Mean7',
+'Wheat.Phenology.Photoperiod'
 ]
 
 fig = panel_xyPlot(yvar = 'Wheat.Leaf.SpecificAreaCanopy',
@@ -2621,17 +2623,30 @@ plt.plot([100,1500],[0,14],color='orange')
 # ## Springs
 
 # %%
+exclude=["Turretfield2024","Fords2025"]
+bPhyllo = 100
+HSs = [0,2,3,7,8,11]
+lsf = [.75,.75,1,1,1.4,1.4]
+tt = [100]
+p = 0
+for h in HSs[:-1]:
+    dHS = HSs[p+1]-HSs[p]
+    dtt = dHS * bPhyllo * lsf[p]
+    tt.append(tt[p]+dtt)
+    p+=1
+saSpring = lambda df: (df['DevelopmentType']=='Spring')&(~df["Experiment"].isin(exclude))
 xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,
-       filter_fn=lambda df: df['DevelopmentType']!='Spring')
-plt.plot([100,1500],[0,13],color='orange')
+       filter_fn= saSpring)
+plt.plot(tt,HSs,color='blue')
 
 # %% [markdown]
 # ## Winters
 
 # %%
+saWinter = lambda df: (df['DevelopmentType']!='Spring')&(~df["Experiment"].isin(exclude))
 xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,
-       filter_fn=lambda df: df['DevelopmentType']=='Spring')
-plt.plot([100,1500],[0,13],color='blue')
+        filter_fn= saWinter)
+plt.plot(tt,HSs,color='orange')
 
 # %%
 exclude_experiments = ["Fords2025", "Turretfield2024"]
