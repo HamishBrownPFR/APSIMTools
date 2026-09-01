@@ -395,23 +395,12 @@ def write_apply_file(sim_file):
 # %%
 data = load_branch_data(CONFIG, write_apply_file)
 
-# %% [markdown]
-# ## filter and set harvest data
-
-# %%
-data.obs['Wheat.Phenology.CurrentStageName']=="HarvestRipe"
-
-# %%
-data.pred['Wheat.Phenology.CurrentStageName']=="HarvestRipe"
-
 
 # %% [markdown]
 # # Tidy up observed data frame
 
 # %% [markdown]
 # ## deal with unuseful and duplicate columns
-
-# %%
 
 # %%
 def drop_unused_cols(data):
@@ -609,17 +598,18 @@ data = merge_duplicate_cols(data)
 # ## remove rows from predicted where wheat is not sown
 
 # %%
-# def remove_fallow_rows(data):
+def remove_fallow_rows(data):
 
-#     data.pred = data.pred.loc[
-#         (data.pred["Wheat.DaysAfterSowing"] > 0)
-#         |
-#         (data.pred["Wheat.Phenology.CurrentStageName"] == "HarvestRipe")
-#     ]
+    data.pred = data.pred.loc[
+        (data.pred["Wheat.Phenology.AccumulatedTT"]>=1)
+        |
+        (data.pred["Wheat.Phenology.CurrentStageName"] == "HarvestRipe")
+    ]
 
-#     return data
+    return data
 
-# data = remove_fallow_rows(data)    
+data = remove_fallow_rows(data)    
+
 
 # %% [markdown]
 # ## Tidy up indexing in observed file
@@ -1385,172 +1375,6 @@ def add_index_maps(data, additional_index_maps):
 
 data = add_index_maps(data, additional_index_maps)
 
-
-# %% [markdown]
-# # Merge predicted values in with observations 
-
-# %% [markdown]
-# ## Merge simple variables
-
-# %%
-def attach_pred_vars(data, variables):
-
-    keys = [
-        "file",
-        "SimulationID",
-        "Clock.Today"
-    ]
-
-    pred_subset = data.pred[
-        keys + variables
-    ]
-
-    data.obs = data.obs.merge(
-                pred_subset,
-                how="left",
-                on=keys
-    )
-    return data
-
-
-# %%
-phenology_preds = [
-"Wheat.Phenology.AccumulatedTT",
-#"Wheat.Phenology.CurrentPhase.Name",
-"Wheat.Phenology.CurrentStageName",
-"Wheat.Phenology.Photoperiod",
-"Wheat.Phenology.PTQ",
-"Wheat.Phenology.Stage",
-"Wheat.Phenology.ThermalTime"]
-#"Wheat.Phenology.Zadok.Stage"]
-
-#data = attach_pred_vars(data, phenology_preds)
-
-# %% [markdown]
-# # Set up experiment style
-
-# %%
-def experiment_legend(ax=None, ncols=2):
-    if ax is None:
-        ax = plt.gca()
-    ax.legend(
-        bbox_to_anchor=(1.15, 1),
-        numpoints=1,
-        ncols=ncols)
-
-def cultivar_legend(ax=None, ncols = None):
-    if ax is None:
-        ax = plt.gca()
-
-    dev_handles = [
-        Line2D([0], [0],
-               marker='o',
-               linestyle='None',
-               color=colour,
-               markersize=8,
-               label=dev)
-        for dev, colour in DevCols.items()
-    ]
-
-    test_handles = [
-        Line2D([0], [0],
-               marker=TestSetMarkers[test],
-               linestyle='None',
-               color='black',
-               alpha=TestSetAlphas[test],
-               markersize=8,
-               label=test)
-        for test in TestSetMarkers
-    ]
-
-    leg1 = ax.legend(
-        handles=dev_handles,
-        title="Development",
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1.00)
-    )
-
-    ax.add_artist(leg1)
-
-    ax.legend(
-        handles=test_handles,
-        title="Test Set",
-        loc="upper left",
-        bbox_to_anchor=(1.02, 0.65)
-    )
-
-    plt.subplots_adjust(right=0.8)
-
-
-# %%
-DistinctColors = {
-     1: "#000000",  # Black
-     2: "#E41A1C",  # Red
-     3: "#377EB8",  # Blue
-     4: "#4DAF4A",  # Green
-     5: "#FF7F00",  # Orange
-     6: "#984EA3",  # Purple
-     7: "#A65628",  # Brown
-     8: "#F781BF",  # Pink
-     9: "#17BECF",  # Cyan
-    10: "#BCBD22",  # Olive
-    11: "#1B9E77",  # Teal
-    12: "#D95F02",  # Dark Orange
-    13: "#E7298A" # magenta
-}
-    
-def build_experiment_style_maps(obs_df,
-                                pred_df,
-                                colours,
-                                markers):
-
-    exps = sorted(
-        set(obs_df["Experiment"].dropna())
-        | set(pred_df["Experiment"].dropna())
-    )
-
-    colour_ids = sorted(DistinctColors.keys())
-    marker_ids = sorted(markers.keys())
-
-    exp_colour_map = {}
-    exp_marker_map = {}
-
-    for i, exp in enumerate(exps):
-
-        # m_id = marker_ids[i % len(marker_ids)]
-        # c_id = colour_ids[(i // len(marker_ids)) % len(colour_ids) ]
-        c_id = colour_ids[i % len(colour_ids)]
-        m_id = marker_ids[(i // len(colour_ids)) % len(marker_ids)]
-
-        exp_colour_map[exp] = DistinctColors[c_id]
-        exp_marker_map[exp] = markers[m_id]
-
-    return exp_colour_map, exp_marker_map
-
-
-# %%
-exp_colour_map, exp_marker_map = (
-    build_experiment_style_maps(
-        data.obs,
-        data.pred,
-        Colors,
-        Markers))
-
-# %%
-experiment_style = {
-    "colour": {
-        "var": "Experiment",
-        "map": exp_colour_map,
-        "default": "lightgrey"
-    },
-    "marker": {
-        "var": "Experiment",
-        "map": exp_marker_map,
-        "default": "o"
-    },
-    "legend_fn":experiment_legend
-}
-
 # %% [markdown]
 # # Derive additional data
 
@@ -1645,53 +1469,6 @@ data.fill_triangular_set('Wheat.Spike.N',
                             'Wheat.Spike.NConc')
 
 # %% [markdown]
-# ## Calculate Ratios
-
-# %%
-data.derive(
-    "Spike/Stem",
-    lambda df:
-        df["Wheat.Spike.Wt"] /
-        df["Wheat.Stem.Wt"]
-)
-
-# %%
-data.derive('Wheat.Spike.WtProportion',
-                lambda df:
-        df["Wheat.Spike.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %%
-data.derive('Wheat.Stem.WtProportion',
-                lambda df:
-        df["Wheat.Stem.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %%
-data.derive('Wheat.Leaf.WtProportion',
-                lambda df:
-        df["Wheat.Leaf.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %%
-data.derive('Wheat.Leaf.LiveWtProportion',
-                lambda df:
-        df["Wheat.Leaf.Live.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %%
-data.derive('Wheat.Leaf.DeadWtProportion',
-                lambda df:
-        df["Wheat.Leaf.Dead.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %%
-data.derive('Wheat.Ear.WtProportion',
-                lambda df:
-        df["Wheat.Ear.Wt"] /
-        df["Wheat.AboveGround.Wt"])
-
-# %% [markdown]
 # # Set harvest data frames
 
 # %%
@@ -1736,7 +1513,7 @@ def build_style_maps(index):
 
 
 # %%
-def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None):
+def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None, filter_dict = None):
     index_vars = ['branch',
                   'Simulation.Name'] 
     if demark_by is not None:
@@ -1745,7 +1522,14 @@ def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None):
         index_vars.append('Wheat.Phenology.CurrentStageName')
     else:
         index_vars.append('Clock.Today')
+    if filter_dict:
+        index_vars += filter_dict['filter_vars']
+    
     master_obs = data.harvest_obs[index_vars + [var]]
+
+    if filter_dict:
+        Mask = filter_dict["filter_fn"](master_obs)
+        master_obs = master_obs.loc[Mask,:]
 
     agg_dict = {}
     for i in index_vars:
@@ -1756,7 +1540,11 @@ def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None):
     master_obs_means.set_index("Simulation.Name",inplace=True)
     
     branch_pred = data.harvest_pred.loc[data.harvest_pred.branch == plot_branch,index_vars+[var]]
-    
+
+    if filter_dict:
+        Mask = filter_dict["filter_fn"](branch_pred)
+        branch_pred = branch_pred.loc[Mask, :]
+
     branch_pred_means = branch_pred.groupby('Simulation.Name', as_index=False).agg(agg_dict).dropna(subset=[var])
     branch_pred_means.set_index("Simulation.Name",inplace=True)
     
@@ -1791,7 +1579,7 @@ def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by=None):
 
 
 # %%
-def plot_obs_pred_by_branch(var, demark_by=None):
+def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None):
     fig, axes = plt.subplots(
         nrows=1,
         ncols=3,
@@ -1805,9 +1593,13 @@ def plot_obs_pred_by_branch(var, demark_by=None):
     
     for ax, plot_branch in zip(axes, branches):
     
-        obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = 'harvest', demark_by=demark_by)
+        obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = 'harvest', demark_by=demark_by, filter_dict = filter_dict)
     
         plot_branch_obs_pred(var, obs_pred_pair, ax, demark_by)
+
+        ax_max = max(obs_pred_pair.loc[:,var].max(),obs_pred_pair.loc[:,'obs'].max())
+
+        ax.plot([0,ax_max],[0,ax_max],'--',color='k')
         
         ax.text(0.05,0.95,plot_branch,transform=ax.transAxes)
 
@@ -1825,475 +1617,7 @@ plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType')
 # %%
 plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar')
 
-# %% [markdown]
-# ## Functions
-
 # %%
-DistinctColors = {
-     1: "#000000",  # Black
-     2: "#E41A1C",  # Red
-     3: "#377EB8",  # Blue
-     4: "#4DAF4A",  # Green
-     5: "#FF7F00",  # Orange
-     6: "#984EA3",  # Purple
-     7: "#A65628",  # Brown
-     8: "#F781BF",  # Pink
-     9: "#17BECF",  # Cyan
-    10: "#BCBD22",  # Olive
-    11: "#1B9E77",  # Teal
-    12: "#D95F02",  # Dark Orange
-    13: "#E7298A" # magenta
-}
-    
-def build_experiment_style_maps(obs_df,
-                                pred_df,
-                                colours,
-                                markers):
-
-    exps = sorted(
-        set(obs_df["Experiment"].dropna())
-        | set(pred_df["Experiment"].dropna())
-    )
-
-    colour_ids = sorted(DistinctColors.keys())
-    marker_ids = sorted(markers.keys())
-
-    exp_colour_map = {}
-    exp_marker_map = {}
-
-    for i, exp in enumerate(exps):
-
-        # m_id = marker_ids[i % len(marker_ids)]
-        # c_id = colour_ids[(i // len(marker_ids)) % len(colour_ids) ]
-        c_id = colour_ids[i % len(colour_ids)]
-        m_id = marker_ids[(i // len(colour_ids)) % len(marker_ids)]
-
-        exp_colour_map[exp] = DistinctColors[c_id]
-        exp_marker_map[exp] = markers[m_id]
-
-    return exp_colour_map, exp_marker_map
-
-
-# %%
-def add_linear(xs,slope,spread_frac=0.3):
-    spread = slope * spread_frac
-    plt.plot(xs,np.multiply(xs,slope),'-')
-    plt.plot(xs,np.multiply(xs,slope+spread),'--')
-    plt.plot(xs,np.multiply(xs,slope-spread),'--')
-
-
-# %%
-def first_nonblank(s):
-    s = s.replace("", np.nan).dropna()
-    return s.iloc[0] if len(s) else np.nan
-
-def build_agg_dict(df, vars_to_keep, group_vars):
-    if isinstance(group_vars, str):
-        group_vars = [group_vars]
-    agg = {}
-    for v in vars_to_keep:
-        if v in group_vars:
-            continue
-        if is_numeric_dtype(df[v]):
-            agg[v] = "mean"
-        else:
-            agg[v] = first_nonblank
-    return agg
-
-def map_series(series, mapping=None, default=None):
-    if mapping is None:
-        return default
-    return series.map(lambda x: mapping.get(x, default))
-
-
-
-# %% [markdown]
-# ## Legend Functions
-
-# %% [markdown]
-# ## Cultivar Style
-
-# %%
-DevCols = {"Spring":"Orange",
-           "Winter":"Blue"}
-
-TestSetAlphas = {"WWHI":1.0,
-                 "GxExM":0.4,
-                 "TestSet":0.1,
-                 "FAR":0.1}
-
-TestSetMarkers = {"WWHI":'s',
-                 "GxExM":'o',
-                 "TestSet":'^',
-                 "FAR":'v'}
-
-TestSetSizes = {"WWHI":10,
-                 "GxExM":50,
-                 "TestSet":100,
-                 "FAR":200,
-               }
-
-plot_order = {
-    'FAR': 0,
-    'TestSet': 1,
-    'GxExM': 2,
-    'WWHI': 3
-}
-
-cultivar_style = {
-    "colour": {
-        "var": "DevelopmentType",
-        "map": DevCols,
-        "default": "lightgrey"
-    },
-    "marker": {
-        "var": "ProjectGroup",
-        "map": TestSetMarkers,
-        "default": "o"
-    },
-    "alpha": {
-        "var": "ProjectGroup",
-        "map": TestSetAlphas,
-        "default": 1.0
-    },
-    "size": {
-        "var": "ProjectGroup",
-        "map": TestSetSizes,
-    },
-    "legend_fn" : cultivar_legend
-    
-}
-
-
-# %% [markdown]
-# ## xyPlot
-
-# %%
-def xyPlot(
-        yvar,
-        xvar = "Wheat.Phenology.Stage",
-        style = cultivar_style,
-        leg_ncols = 1,
-        size_spec=None, 
-        source = "obs",
-        filter_fn = None,
-        ax=None,
-        xlim = (2, 12),
-        ylim = None,
-        aggregate = False):
-
-    # --------------------
-    # Get source data and apply filter
-    # --------------------
-    filtered_data = getattr(data, source)
-    if filter_fn:
-        Mask = filter_fn(filtered_data)
-        filtered_data = filtered_data.loc[Mask,:]
-
-    style = style.copy()
-    if size_spec is not None:
-        style['size'] = size_spec
-    
-    # --------------------
-    # build variable list
-    # --------------------
-    vars_to_keep = [xvar, yvar, "Simulation.Name"]
-    for attr in style.values():
-        if isinstance(attr, dict) and "var" in attr and attr["var"] not in vars_to_keep:
-            vars_to_keep.append(attr["var"])
-    vars_to_keep = list(vars_to_keep)
-
-    # --------------------
-    # aggregate
-    # --------------------
-    all_data = filtered_data.loc[:, vars_to_keep].dropna(subset=[xvar, yvar])
-    if aggregate:
-        agg_dict = build_agg_dict(all_data, vars_to_keep,['Simulation.Name'])
-        all_data = (all_data.groupby('Simulation.Name', as_index=False).agg(agg_dict).dropna(subset=[xvar, yvar]))
-
-    # --------------------
-    # resolve size specification
-    # --------------------
-    # default behaviour when no sizing is specified anywhere
-    default_size = 50
-    size_spec = style.get("size",None)
-    if size_spec is not None: # if a size_spec is available
-        default_size = size_spec.get("default", default_size)
-        size_var = size_spec["var"]
-        if size_spec.get("map",False):
-            size_map = size_spec.get("map")
-            all_data["_size"] = (all_data[size_var].map(size_map).fillna(default_size))
-        else:  
-            smin = all_data[size_var].min()
-            smax = all_data[size_var].max()
-            if smax > smin:
-                slope = ((size_spec["max"] - size_spec["min"]) / (smax - smin))
-                all_data["_size"] = (size_spec["min"]+ slope * (all_data[size_var] - smin))
-                all_data["_size"] = (all_data["_size"].fillna(default_size))
-            else:
-                all_data["_size"] = default_size
-    # --------------------
-    # determine grouping
-    # --------------------
-    marker_spec = style.get("marker")
-    if marker_spec:
-        group_var = marker_spec["var"]
-    else:
-        all_data["_group"] = "All"
-        group_var = "_group"
-    
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    # --------------------
-    # plot groups
-    # --------------------
-
-    for group, plot_data in all_data.groupby(group_var):
-        # marker
-        marker = "o"
-        if marker_spec:
-            marker = marker_spec["map"].get(group, marker_spec.get("default", "o"))
-
-        # alpha
-        alpha = 1.0
-        alpha_spec = style.get("alpha")
-        if alpha_spec:
-            alpha = alpha_spec["map"].get(group, alpha_spec.get("default", 1.0))
-
-        # colours
-
-        colour_spec = style.get("colour")
-        if colour_spec:
-            colours = map_series(plot_data[colour_spec["var"]], 
-                                 colour_spec["map"], 
-                                 colour_spec.get("default"))
-        else:
-            colours = "steelblue"
-
-        if "_size" in plot_data:
-            sizes = plot_data["_size"]
-        else:
-            sizes = default_size
-
-        ax.scatter(plot_data[xvar], plot_data[yvar], label=group,
-                   c=colours, marker=marker, alpha=alpha, s=sizes)
-
-    # --------------------
-    # axes
-    # --------------------
-    if xlim is not None:
-        ax.set_xlim(*xlim)
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-    ax.set_xlabel(xvar)
-    ax.set_ylabel(yvar)
-    if style["legend_fn"] is not None:
-        style["legend_fn"](ax, leg_ncols)
-
-    return ax
-
-
-# %%
-data.obs["Wheat.Grain.Wt"].dropna()
-
-
-# %% [markdown]
-# ## seriesPlot
-
-# %%
-def seriesPlot(yvar,
-            xvar = "Wheat.Phenology.Stage",
-            source = "pred",
-            filter_fn = None,
-            color_by = 'Experiment', 
-            addLeg = True,
-            leg_ncols=np.nan,
-            xlim = None,
-            ylim = None,
-            ax=None,
-            method = 'raw'):
-
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    cpos=1
-    mpos=1
-
-    filtered_data = getattr(data, source)
-    if filter_fn:
-        Mask = filter_fn(filtered_data)
-        filtered_data = filtered_data.loc[Mask,:]
-    
-    plotData = filtered_data.loc[:,['Simulation.Name',color_by,xvar,yvar]].dropna()
-        
-    groups = plotData.loc[:,color_by].drop_duplicates()
-    for g in groups:
-        sims = plotData.loc[plotData[color_by]==g,'Simulation.Name'].drop_duplicates()
-        first = True
-        for s in sims:
-            subPlotData = plotData.loc[plotData['Simulation.Name']==s,:]
-            xdata = pd.to_numeric(subPlotData.loc[:,xvar])
-            ydata = transform_series(pd.to_numeric(subPlotData.loc[:,yvar]),method)
-            ax.plot(xdata,ydata,Markers[mpos]+'-',color=Colors[cpos],label=g if first else '_nolegend_')
-            first=False
-        cpos+=1
-        mpos+=1
-        if mpos>13:
-            mpos=1
-        if cpos>28:
-            cpos=1
-    if addLeg == True:
-        if np.isnan(leg_ncols):
-             ncols = np.ceil(groups.size/17)
-        ax.legend(bbox_to_anchor=(1.15, 1),numpoints=1,ncols=ncols)
-    if xlim is not None:
-        ax.set_xlim(*xlim)
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-    ax.set_ylabel(yvar)
-    ax.set_xlabel(xvar)
-    return ax
-
-def transform_series(x, method="raw", **kwargs):
-    if method == "raw":
-        return x
-
-    elif method == "running_mean":
-        return x.expanding().mean()
-
-    elif method == "rolling_mean":
-        window = kwargs.get("window", 5)
-        return x.rolling(window=window, min_periods=1).mean()
-
-    elif method == "cumsum":
-        return x.cumsum()
-
-    elif method == "diff":
-        return x.diff()
-
-    elif method == "pct_change":
-        return x.pct_change()
-
-    else:
-        raise ValueError(f"Unknown transform: {method}")
-
-
-# %% [markdown]
-# ## panel_xyPlot
-
-# %%
-def panel_xyPlot(yvar,
-            xvars,
-            style = cultivar_style,
-            leg_ncols = 1,
-            size_spec=None, 
-            source = "obs",
-            filter_fn = None,
-            ax=None,
-            xlim=(2,12),
-            ylim = None,
-            panel_ncols = 3,
-            aggregate=False):
-
-    nplots = len(xvars)
-    nrows = int(np.ceil(nplots / panel_ncols))
-
-    fig, axes = plt.subplots(
-        nrows,
-        panel_ncols,
-        figsize=(5*panel_ncols, 4*nrows),
-        constrained_layout=True
-    )
-
-    axes = np.array(axes).flatten()
-
-    for ax, xvar in zip(axes, xvars):
-        xyPlot(yvar, xvar=xvar, 
-                style=style, leg_ncols=leg_ncols,
-                size_spec=size_spec, 
-                source = source, 
-                filter_fn = filter_fn,
-                ax=ax,
-                xlim=xlim, ylim=ylim,
-                aggregate=aggregate) 
-
-        ax.text(0.05,0.95,xvar,transform=ax.transAxes)
-
-    # Hide unused panels
-    for ax in axes[nplots:]:
-        ax.set_visible(False)
-
-    return fig
-
-
-# %% [markdown]
-# ## pannel_per_experment
-
-# %%
-def pannel_per_experment(yvar,
-                      xvar = 'Wheat.Phenology.Stage',
-                      ncols = 4):
-    plotData = data.obs.loc[:,['Experiment','Simulation.Name',xvar,yvar]].dropna(how='any')
-    experiments = plotData.Experiment.drop_duplicates()
-    nplots = len(experiments)
-    nrows = int(np.ceil(nplots / ncols))
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(3*ncols, 3*nrows),
-        constrained_layout=True
-    )
-    ymax = plotData.loc[:,yvar].max()*1.1
-    ymin = plotData.loc[:,yvar].min()*0.9
-    xmax = plotData.loc[:,xvar].max()*1.1
-    xmin = plotData.loc[:,xvar].min()*0.9
-    axes = np.array(axes).flatten()
-    for ax, e in zip(axes, experiments):
-        setdata = plotData.loc[plotData.Experiment==e,:]
-        sims = setdata.loc[:,'Simulation.Name'].drop_duplicates()
-        colors = [Colors[x] for x in range(1,len(sims)+1)]
-        cmap = dict(zip(sims,colors))
-        colser = [cmap[x] for x in setdata.loc[:,'Simulation.Name']]
-        ax.scatter(setdata[xvar],setdata[yvar],c=colser,s=100) 
-        ax.text(0.05,0.95,e,transform=ax.transAxes)
-        ax.set_xlim(xmin,xmax)
-        ax.set_ylim(ymin,ymax)
-    
-    # Hide unused panels
-    for ax in axes[nplots:]:
-        ax.set_visible(False)
-
-
-# %% [markdown]
-# # Harvest predictions
-
-# %% [markdown]
-# ## Yield
-
-# %%
-graph = plot_obs_pred_by_branch(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Grain.Wt",
-    mode='harvest',
-    filters = {"ProjectGroup":['WWHI']},
-    color_by = "Experiment",
-    marker_by = "DevelopmentType",
-    size_by=None
-)
-graph.savefig("Yield WWHI.jpg")
-
-# %%
-plot_obs_pred_by_branch(
-    tidy = tidy,
-    config = CONFIG,
-    variable = "Wheat.Grain.Wt",
-    mode='harvest',
-    filters=None, #filters = {'Wheat.SowingData.Cultivar':['Meering','Mowhawk']}
-    color_by = "DevelopmentType",
-    marker_by = "Wheat.SowingData.Cultivar",
-    size_by=None,
-    show_ellipses=True    
-)
-plt.show()
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',
+                       filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "WWHI", 
+                                      'filter_vars' : ["ProjectGroup"]})
