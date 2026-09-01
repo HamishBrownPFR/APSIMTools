@@ -21,6 +21,7 @@
         "[IWeather].Latitude",
         "[IWeather].Longitude",
         " [Soil].Water.Volumetric",
+        " [Wheat].Population",
         " [Wheat].AboveGround.N",
         " [Wheat].AboveGround.Wt",
         " [Wheat].AboveGroundDead.N",

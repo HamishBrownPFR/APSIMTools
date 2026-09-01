@@ -2025,12 +2025,17 @@ data.derive('Wheat.Leaf.Wt',
             df["Wheat.Leaf.Dead.Wt"])
 
 # %%
+data.derive('Wheat.Ear.Wt',
+                lambda df:
+            df["Wheat.Spike.Wt"] +
+            df["Wheat.Grain.Wt"])
+
+# %%
 data.derive('Wheat.AboveGround.Wt',
                 lambda df:
             df["Wheat.Leaf.Wt"] +
             df["Wheat.Stem.Wt"] +
-            df["Wheat.Spike.Wt"] +
-            df["Wheat.Grain.Wt"])
+            df["Wheat.Ear.Wt"])
 
 # %%
 data.derive('Wheat.Leaf.StemNumberPerPlant',
@@ -2105,7 +2110,7 @@ data.fill_triangular_set('Wheat.Spike.N',
 
 # %%
 data.derive(
-    "Spike/Stem",
+    "Wheat.Spike.Wt/Stem.Wt",
     lambda df:
         df["Wheat.Spike.Wt"] /
         df["Wheat.Stem.Wt"]
@@ -2216,7 +2221,7 @@ data.aggregate_sim_values('Wheat.Leaf.Wt','Wheat.Leaf.Wt.Anthesis',
                    fn = value_at_stage(8,6.5,8.5))
 
 # %%
-data.aggregate_sim_values('Wheat.Leaf.N','Wheat.Leaf.N.Anthesis',
+data.aggregate_sim_values('Wheat.Leaf.Live.N','Wheat.Leaf.Live.N.Anthesis',
                    fn = value_at_stage(8,6.5,8.5))
 
 # %%
@@ -2225,6 +2230,18 @@ data.aggregate_sim_values('Wheat.AboveGround.Wt','Wheat.AboveGround.Wt.Anthesis'
 
 # %%
 data.aggregate_sim_values('Wheat.AboveGround.N','Wheat.AboveGround.N.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
+data.aggregate_sim_values('Wheat.AboveGround.NConc','Wheat.AboveGround.NConc.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
+data.aggregate_sim_values('Wheat.Stem.NConc','Wheat.Stem.NConc.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
+data.aggregate_sim_values('Wheat.Leaf.Live.NConc','Wheat.Leaf.Live.NConc.Anthesis',
                    fn = value_at_stage(8,6.5,8.5))
 
 # %%
@@ -2269,6 +2286,11 @@ data.derive('Wheat.GrainNoPerGofStem',
             #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
 
 # %%
+data.derive('Wheat.GrainNoPerGofDM',
+            lambda df: df['Wheat.Grain.Number']/df['Wheat.AboveGround.Wt.Anthesis'] ) 
+            #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
+
+# %%
 data.aggregate_sim_values('Wheat.Phenology.PTQ','Wheat.Phenology.PTQ.Critical',
                    filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
                          (df["Wheat.Phenology.Stage"] < 8.1))
@@ -2308,12 +2330,12 @@ data.aggregate_sim_values('IWeather.MeanT','IWeather.MeanT.Critical',
 # ## Spike/Stem
 
 # %%
-xyPlot("Spike/Stem")
+xyPlot("Wheat.Spike.Wt/Stem.Wt")
 plt.plot([5.8,6.0,7.0,8.0,11.0],
          [0.0,.02,.35,.45,.45],'-')
 
 # %%
-xyPlot("Spike/Stem",
+xyPlot("Wheat.Spike.Wt/Stem.Wt",
       style = experiment_style,
       leg_ncols=2)
 plt.plot([5.8,6.0,7.0,8.0,11.0],
@@ -2350,18 +2372,6 @@ plt.plot([3.0,5.0, 6.0,8.0],
          [0.0,0.36,.65,.65],'-')
 plt.plot([3.0,5.0, 6.0,8.0],
          np.multiply([0.0,0.36,.65,.65],0.7),'-')
-
-# %%
-
-# %%
-xyPlot('Wheat.Stem.WtProportion',
-      style=experiment_style, leg_ncols=3,
-      filter_fn=lambda df: df["ProjectGroup"] == "GxExM")
-plt.plot([3.0,5.0, 6.0,8.0],
-         [0.0,0.36,.65,.65],'-')
-plt.plot([3.0,5.0, 6.0,8.0],
-         np.multiply([0.0,0.36,.65,.65],0.7),'-')
-plt.ylim(0,.9)
 
 # %% [markdown]
 # ## Allometric
@@ -2580,7 +2590,7 @@ xyPlot('SLA * MaxT',
 # ## PTQ normed 
 
 # %%
-xyPlot('SLA * PTQ', ylim = (0,0.1))
+xyPlot('SLA * PTQ', ylim = (0,0.2))
 
 # %%
 xyPlot('SLA * PTQ',
@@ -2969,6 +2979,43 @@ fig = panel_xyPlot(
     panel_ncols=2,
     xlim=None,
     aggregate=True)
+
+# %%
+CMeanVars = [
+'Wheat.Phenology.PTQ.Critical',
+'IWeather.MinT.Critical',
+'IWeather.MaxT.Critical',
+'IWeather.MeanT.Critical',
+'IWeather.Radn.Critical'
+]
+
+fig = panel_xyPlot(
+    'Wheat.GrainNoPerGofDM',
+    CMeanVars,
+    panel_ncols=2,
+    xlim=None,
+    aggregate=True)
+
+# %% [markdown]
+# ## Nconc
+
+# %%
+xyPlot(xvar = 'Wheat.AboveGround.NConc.Anthesis',yvar = 'Wheat.GrainNoPerGofStem',
+    style=experiment_style, leg_ncols=2,
+       xlim=None, aggregate=True)
+plt.ylim(0,50)
+
+# %%
+xyPlot(xvar = 'Wheat.Leaf.Live.NConc.Anthesis',yvar = 'Wheat.GrainNoPerGofStem',
+    style=experiment_style, leg_ncols=2,
+       xlim=None, aggregate=True)
+plt.ylim(0,50)
+
+# %%
+xyPlot(xvar = 'Wheat.Stem.NConc.Anthesis',yvar = 'Wheat.GrainNoPerGofStem',
+    #style=experiment_style, leg_ncols=2,
+       xlim=None, aggregate=True)
+plt.ylim(0,50)
 
 # %% [markdown]
 # # Grain Size

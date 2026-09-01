@@ -66,15 +66,15 @@ BRANCHES = {
 # ======================
 
 # Options:
-#RUN_BRANCHES = []                    # run nothing (use existing DBs)
-RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
+RUN_BRANCHES = []                    # run nothing (use existing DBs)
+#RUN_BRANCHES = list(BRANCHES.keys())   # run all branches
 #RUN_BRANCHES = ["master"]
 #RUN_BRANCHES = ["working"]
 #RUN_BRANCHES = ["working V2"]
 
 SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
-    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
+    #Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024.apsimx'),
