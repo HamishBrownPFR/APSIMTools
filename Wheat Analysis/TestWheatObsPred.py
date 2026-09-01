@@ -41,7 +41,8 @@ from pandas.api.types import is_numeric_dtype
 # graph models
 from apsim_tools.graphing import (
     plot_obs_pred_by_branch,
-    plot_stage_timeseries
+    plot_stage_timeseries,
+    compute_stats
 )
 
 from apsim_tools.style import ( 
@@ -1476,6 +1477,27 @@ data.harvest_obs = data.obs.loc[data.obs['Wheat.Phenology.CurrentStageName']=="H
 data.harvest_pred = data.pred.loc[data.pred['Wheat.Phenology.CurrentStageName']=="HarvestRipe",:]
 
 # %% [markdown]
+# # Set blank stats results frame
+
+# %%
+stats_template = {
+    'NSE': np.nan,
+    'Bias': np.nan,
+    'RMSE': np.nan,
+    'R2': np.nan
+}
+
+stats_results = pd.DataFrame(
+    columns=stats_template.keys(),
+    index=pd.MultiIndex(
+        levels=[[], []],
+        codes=[[], []],
+        names=['var', 'branch']
+    )
+)
+
+
+# %% [markdown]
 # # Graphing
 
 # %%
@@ -1548,7 +1570,7 @@ def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None, filt
     branch_pred_means = branch_pred.groupby('Simulation.Name', as_index=False).agg(agg_dict).dropna(subset=[var])
     branch_pred_means.set_index("Simulation.Name",inplace=True)
     
-    obs_pred_pair = branch_pred_means.reindex(master_obs_means.index)
+    obs_pred_pair = branch_pred_means.reindex(master_obs_means.index).rename(columns={var: "pred"})
     
     obs_pred_pair["obs"] = master_obs_means[var]
 
@@ -1570,7 +1592,7 @@ def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by=None):
         marker = markers[g]
         color_seq = groupData[demark_by].map(colors)
         ax.scatter(groupData['obs'],
-           groupData[var],
+           groupData['pred'],
            s=40,
            c=colors[g],
            marker=marker)
@@ -1591,18 +1613,39 @@ def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None):
     
     axes = np.array(axes).flatten()
     
+    bpos = 1
+    ax_max = 0
     for ax, plot_branch in zip(axes, branches):
     
         obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = 'harvest', demark_by=demark_by, filter_dict = filter_dict)
     
         plot_branch_obs_pred(var, obs_pred_pair, ax, demark_by)
 
-        ax_max = max(obs_pred_pair.loc[:,var].max(),obs_pred_pair.loc[:,'obs'].max())
+        ax_max = max(ax_max,max(obs_pred_pair.loc[:,'pred'].max(),obs_pred_pair.loc[:,'obs'].max()))
 
+        stats = compute_stats(obs_pred_pair)
+
+        stats_results.loc[(var, plot_branch), :] = stats
+
+        stats_text = (
+                f"{plot_branch}\n"
+                f"NSE = {stats['NSE']:.2f}\n"
+                f"Bias = {stats['Bias']:.2f}"
+            )
+        ax.text(0.05,0.98,stats_text,
+                transform=ax.transAxes,
+               ha="left",
+               va="top",
+               fontsize=10,
+               bbox=dict(facecolor="white", alpha=0.6, edgecolor="none")
+               )
+        if bpos == 1:
+            ax.set_ylabel(f"Predicted {var}")
+        ax.set_xlabel(f"Observed {var}")
+        bpos+=1
+
+    for ax, plot_branch in zip(axes, branches):
         ax.plot([0,ax_max],[0,ax_max],'--',color='k')
-        
-        ax.text(0.05,0.95,plot_branch,transform=ax.transAxes)
-
 
 
 # %%
@@ -1621,3 +1664,6 @@ plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar')
 plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',
                        filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "WWHI", 
                                       'filter_vars' : ["ProjectGroup"]})
+
+# %%
+stats_results
