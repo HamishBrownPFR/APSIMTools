@@ -133,7 +133,15 @@
         "[Wheat].Phenology.ThermalTime",
         "[Wheat].Phenology.Zadok.Stage",
         "[Wheat].SowingData.Cultivar",
-        "[Wheat].Population"
+        "[Wheat].Population",
+        "[TT00]",
+        "[TT01]",
+        "[TT02]",
+        "[TT03]",
+        "[TT04]",
+        "[TT05]",
+        "[TT06]",
+        "[TT07]"
       ],
       "EventNames": [
         "[Clock].DoReport"
@@ -142,6 +150,494 @@
       "Name": "ObsAnalysisReport",
       "ResourceName": null,
       "Children": [],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT00",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 0.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT01",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 1.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT02",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 2.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT03",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 3.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT04",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 4.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT05",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 5.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT06",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 6.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
+      "Enabled": true,
+      "ReadOnly": false
+    },
+    {
+      "$type": "Models.Functions.AccumulateFunctionGeneral, Models",
+      "AccumulateToday": false,
+      "AccumulateEventName": null,
+      "NameOfPlantToLink": "Wheat",
+      "StartStageName": "Sowing",
+      "EndStageName": "HarvestRipe",
+      "StartEventName": null,
+      "EndEventName": null,
+      "StartDate": null,
+      "EndDate": null,
+      "ReduceStageName": null,
+      "FractionRemovedOnStage": 0.0,
+      "ReduceEventName": null,
+      "FractionRemovedOnEvent": 0.0,
+      "ReduceDates": null,
+      "FractionRemovedOnDate": 0.0,
+      "FractionRemovedOnCut": 0.0,
+      "FractionRemovedOnHarvest": 0.0,
+      "FractionRemovedOnGraze": 0.0,
+      "FractionRemovedOnPrune": 0.0,
+      "Name": "TT07",
+      "ResourceName": null,
+      "Children": [
+        {
+          "$type": "Models.Functions.SubDailyInterpolation, Models",
+          "agregationMethod": 1,
+          "Name": "TTdaily",
+          "ResourceName": null,
+          "Children": [
+            {
+              "$type": "Models.Functions.WangEngelTempFunction, Models",
+              "MinTemp": 7.0,
+              "OptTemp": 26.0,
+              "MaxTemp": 37.0,
+              "RefTemp": 0.0,
+              "Beta": 1.0,
+              "MaximumTemperatureWeighting": 0.0,
+              "Units": null,
+              "Name": "Response",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            },
+            {
+              "$type": "Models.Functions.HourlySinPpAdjusted, Models",
+              "Name": "InterpolationMethod",
+              "ResourceName": null,
+              "Children": [],
+              "Enabled": true,
+              "ReadOnly": false
+            }
+          ],
+          "Enabled": true,
+          "ReadOnly": false
+        }
+      ],
       "Enabled": true,
       "ReadOnly": false
     }

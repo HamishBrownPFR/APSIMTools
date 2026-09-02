@@ -303,6 +303,7 @@ def load_branch_data(config, apply_fn):
 # %%
 SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\LincolnUni.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
@@ -320,8 +321,8 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branches":  { "master": "UoM_Wheat", "working": "WheatNeil", "working V2": "WheatHamish"},
-    #"run_branches":  ["master", "working", "working V2"],
-    "run_branches": [],
+    "run_branches":  ["master", "working", "working V2"],
+    #"run_branches": [],
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -352,25 +353,15 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     # Add AnalysisReport to all Simulation nodes
     # ---------------------------------------------
-    #lines.append("delete all [Report]")
+    lines.append("delete all [Report]")
+    lines.append("delete all [Report]")
     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
 
     # ---------------------------------------------
     # Remove existing ObsPred table and add HarvestObsPred to data store
     # ---------------------------------------------
-    #lines.append("delete all [PredictedObserved]")
-    
-    lines.append("add new PredictedObserved to [DataStore] name HarvestObsPred")
-    lines.append("[HarvestObsPred].PredictedTableName  = AnalysisReport")
-    lines.append("[HarvestObsPred].ObservedTableName  = Observed")
-    lines.append("[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
-    lines.append("[HarvestObsPred].FieldName2UsedForMatch  = Wheat.Phenology.CurrentStageName")
-        
-    lines.append("add new PredictedObserved to DataStore name DailyObsPred")
-    lines.append("[DailyObsPred].PredictedTableName  = AnalysisReport")
-    lines.append("[DailyObsPred].ObservedTableName  = Observed")
-    lines.append("[DailyObsPred].FieldNameUsedForMatch  = SimulationName")
-    lines.append("[DailyObsPred].FieldName2UsedForMatch  = Clock.Today")
+    lines.append("delete all [PredictedObserved]")
+    lines.append("delete all [PredictedObserved]")
     
     # ---------------------------------------------
     # Inject Spectral model into each simulation
@@ -1514,7 +1505,7 @@ DistinctColors = {
     10: "#BCBD22",  # Olive
     11: "#1B9E77",  # Teal
     12: "#D95F02",  # Dark Orange
-    13: "#E7298A" # magenta
+    13: "#E7298A"   # magenta
 }
     
 def build_style_maps(index):
@@ -1535,47 +1526,51 @@ def build_style_maps(index):
 
 
 # %%
-def get_obs_pred_pair(plot_branch, var, mode = 'harvest', demark_by = None, filter_dict = None):
+def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = None, filter_dict = None):
     index_vars = ['branch',
                   'Simulation.Name'] 
     if demark_by is not None:
         index_vars.append(demark_by)
-    if mode == 'harvest':
-        index_vars.append('Wheat.Phenology.CurrentStageName')
-    else:
-        index_vars.append('Clock.Today')
+
     if filter_dict:
         index_vars += filter_dict['filter_vars']
-    
-    master_obs = data.harvest_obs[index_vars + [var]]
+        
+    if mode == 'harvest':
+        index_vars.append('Wheat.Phenology.CurrentStageName')
+        group_vars = ['Simulation.Name']
+        master_obs = data.harvest_obs[index_vars + [var]]
+        branch_pred = data.harvest_pred.loc[data.harvest_pred.branch == plot_branch,index_vars+[var]]
+    else:
+        index_vars.append('Clock.Today')
+        group_vars = ['Simulation.Name','Clock.Today']
+        master_obs = data.obs[index_vars + [var]]
+        branch_pred = data.pred[index_vars + [var]]
+
+    agg_dict = {
+        col: 'first'
+        for col in index_vars
+        if col not in group_vars
+    }
+    agg_dict[var] = 'mean'
 
     if filter_dict:
         Mask = filter_dict["filter_fn"](master_obs)
         master_obs = master_obs.loc[Mask,:]
-
-    agg_dict = {}
-    for i in index_vars:
-        agg_dict[i] = "first"
-    agg_dict[var] = "mean"
     
-    master_obs_means = master_obs.groupby('Simulation.Name', as_index=False).agg(agg_dict).dropna(subset=[var])
-    master_obs_means.set_index("Simulation.Name",inplace=True)
-    
-    branch_pred = data.harvest_pred.loc[data.harvest_pred.branch == plot_branch,index_vars+[var]]
-
+    master_obs_means = master_obs.groupby(group_vars, as_index=False).agg(agg_dict).dropna(subset=[var])
+    master_obs_means.set_index(group_vars,inplace=True)
+        
     if filter_dict:
         Mask = filter_dict["filter_fn"](branch_pred)
         branch_pred = branch_pred.loc[Mask, :]
 
-    branch_pred_means = branch_pred.groupby('Simulation.Name', as_index=False).agg(agg_dict).dropna(subset=[var])
-    branch_pred_means.set_index("Simulation.Name",inplace=True)
+    branch_pred_means = branch_pred.groupby(group_vars, as_index=False).agg(agg_dict).dropna(subset=[var])
+    branch_pred_means.set_index(group_vars,inplace=True)
     
-    obs_pred_pair = branch_pred_means.reindex(master_obs_means.index).rename(columns={var: "pred"})
-    
+    obs_pred_pair = branch_pred_means.reindex(master_obs_means.index).rename(columns={var: "pred"}) 
     obs_pred_pair["obs"] = master_obs_means[var]
 
     return obs_pred_pair
-    
 
 
 # %%
@@ -1601,7 +1596,7 @@ def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by=None):
 
 
 # %%
-def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None):
+def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None, mode = ''):
     fig, axes = plt.subplots(
         nrows=1,
         ncols=3,
@@ -1617,18 +1612,21 @@ def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None):
     ax_max = 0
     for ax, plot_branch in zip(axes, branches):
     
-        obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = 'harvest', demark_by=demark_by, filter_dict = filter_dict)
+        obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = mode, demark_by=demark_by, filter_dict = filter_dict)
     
         plot_branch_obs_pred(var, obs_pred_pair, ax, demark_by)
 
         ax_max = max(ax_max,max(obs_pred_pair.loc[:,'pred'].max(),obs_pred_pair.loc[:,'obs'].max()))
 
         stats = compute_stats(obs_pred_pair)
+        n = len(obs_pred_pair['obs'].dropna())
 
         stats_results.loc[(var, plot_branch), :] = stats
+        
 
         stats_text = (
                 f"{plot_branch}\n"
+                f"n = {n}\n" 
                 f"NSE = {stats['NSE']:.2f}\n"
                 f"Bias = {stats['Bias']:.2f}"
             )
@@ -1647,23 +1645,34 @@ def plot_obs_pred_by_branch(var, demark_by=None, filter_dict = None):
     for ax, plot_branch in zip(axes, branches):
         ax.plot([0,ax_max],[0,ax_max],'--',color='k')
 
+# %% [markdown]
+# # Harvest
 
 # %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Experiment')
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Experiment',mode='harvest')
 
 # %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='ProjectGroup')
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='ProjectGroup',mode='harvest')
 
 # %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType')
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType',mode='harvest')
 
 # %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar')
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest')
+
+# %% [markdown]
+# # Daily
 
 # %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='Wheat.SowingData.Cultivar')
+
+# %%
+plot_obs_pred_by_branch("Wheat.AboveGround.Wt",demark_by='Wheat.SowingData.Cultivar',
                        filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "WWHI", 
                                       'filter_vars' : ["ProjectGroup"]})
 
 # %%
 stats_results
+
+# %%
+data.obs[data.obs['Simulation.Name']=='Lincoln2024SD16AprNHigh']

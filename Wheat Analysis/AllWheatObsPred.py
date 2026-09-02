@@ -73,8 +73,9 @@ RUN_BRANCHES = []                    # run nothing (use existing DBs)
 #RUN_BRANCHES = ["working V2"]
 
 SIM_FILES = [
-    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
+    #Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
     #Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
+    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\LincolnUni.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024.apsimx'),
@@ -111,39 +112,117 @@ validate_run_branches(config=CONFIG)
 
 # %%
 # Specifiy map for cultivars to winter or spring type
-Development_type={
-'29B':'Spring',
-'5A':'Spring',
-'60A':'Spring',
-'BigRed':'Winter',
-'Corack':'Spring',
-'Espada':'Spring',
-'Gauntlet':'Spring',
-'Gregory':'Spring',
-'Hartog':'Spring',
-'Illabo':'Winter',
-'Janz':'Spring',
-'Kittyhawk':'Winter',
-'Mace':'Spring',
-'Meering':'Spring',
-'Mowhawk':'Winter',
-'Osprey':'Winter',
-'Rosella':'Winter',
-'Scepter':'Spring',
-'Scout':'Spring',
-'Spitfire':'Spring',
-'Stockade':'Spring',
-'Sunbee':'Spring',
-'Sunmaster':'Spring',
-'Sunstate':'Spring',
-'UOM001_3_47':'Winter',
-'UOM001_9_1':'Winter',
-'Wedgetail':'Winter',
-'Whistler':'Winter',
-'Wyalkatchem':'Spring',
-'Wylah':'Winter',
-'Yitpi':'Spring',
-'Zanzibar':'Spring',
+Development_type= {
+"Accroc":"Winter",
+"Adv08_0008":"Winter",
+"Anapurna":"Winter",
+"Ararat":"Spring",
+"Atlanta":"Spring",
+"Axe":"Spring",
+"Batavia":"Spring",
+"BattenSpring":"Spring",
+"BattenWinter":"Winter",
+"Beaufort":"Spring",
+"Bennett":"Winter",
+"BigRed":"Winter",
+"Bolac":"Spring",
+"Braewood":"Spring",
+"Calabro":"Winter",
+"Calingiri":"Spring",
+"Catalina":"Spring",
+"Catapult":"Spring",
+"Cesario":"Winter",
+"Claire":"Winter",
+"Conquest":"Spring",
+"Corack":"Spring",
+"Crusader":"Spring",
+"CRW247":"Spring",
+"Cutlass":"Spring",
+"Dekan":"Spring",
+"Derrimut":"Spring",
+"Discovery":"Spring",
+"Drysdale":"Spring",
+"Eaglehawk":"Spring",
+"Einstein":"Winter",
+"Ellison":"Spring",
+"Forrest":"Spring",
+"gamenya":"Spring",
+"Gauntlet":"Spring",
+"Gladius":"Spring",
+"Gorgan":"Spring",
+"Graham":"Winter",
+"Gregory":"Spring",
+"Gutha":"Spring",
+"H45":"Spring",
+"H46":"Spring",
+"Har1685":"Spring",
+"Hartog":"Spring",
+"Hume":"Spring",
+"Illabo":"Winter",
+"Istabraq":"Spring",
+"Janz":"Spring",
+"Kellalac":"Spring",
+"Kennedy":"Spring",
+"Kerrin":"Winter",
+"Keyu13":"Spring",
+"Kinsei":"Spring",
+"Kittyhawk":"Winter",
+"Konya":"Spring",
+"Lancer":"Spring",
+"Lincoln":"Spring",
+"Livingston":"Spring",
+"Mace":"Spring",
+"Magenta":"Spring",
+"Manning":"Winter",
+"Matong":"Spring",
+"Meering":"Spring",
+"Mercury":"Spring",
+"Merinda":"Spring",
+"Mowhawk":"Winter",
+"Nighthawk":"Spring",
+"Osprey":"Winter",
+"Otane":"Spring",
+"Ouyen":"Spring",
+"Pascal":"Spring",
+"Peake":"Spring",
+"Relay":"Winter",
+"Revenue":"Winter",
+"Rockstar":"Spring",
+"Rongotea":"Spring",
+"Rosario":"Spring",
+"Rosella":"Winter",
+"Ruby":"Spring",
+"Savannah":"Winter",
+"Scepter":"Spring",
+"Scout":"Spring",
+"Scythe":"Spring",
+"Sorrial":"Winter",
+"Spear":"Spring",
+"Spitfire":"Spring",
+"Stockade":"Spring",
+"Strzelecki":"Spring",
+"Sunbri":"Spring",
+"Sunmaster":"Spring",
+"Sunstate":"Spring",
+"Suntop":"Spring",
+"Trojan":"Spring",
+"UOM001_3_47":"Winter",
+"UOM001_9_1":"Winter",
+"Ventura":"Spring",
+"Voltron":"Winter",
+"Wakanui":"Winter",
+"Waugh":"Winter",
+"Wedgetail":"Winter",
+"Whistler":"Winter",
+"Wilgoyne":"Spring",
+"Wills":"Spring",
+"Wyalkatchem":"Spring",
+"Wylah":"Winter",
+"Yecora":"Spring",
+"Yitpi":"Spring",
+"Young":"Spring",
+"Zanzibar":"Spring",
+"Zyatt":"Winter",
 }
 
 # Specify map for each experiment to project grouping
@@ -166,7 +245,10 @@ Project_group = {
     'DookieEVA2024':'EVA',
     'DookieEVA2025':'EVA',
     'Gnarwarre2024':'EVA',
-    'Gnarwarre2025':'EVA'
+    'Gnarwarre2025':'EVA',
+    'Lincoln2021':'Lincoln',
+    'Lincoln2023':'Lincoln',
+    'Lincoln2024':'Lincoln'
 }
 
 # Pack maps together ready to be inserted as indexes 
@@ -204,25 +286,27 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     # Add AnalysisReport to all Simulation nodes
     # ---------------------------------------------
-    #lines.append("delete all [Report]")
+    lines.append("delete all [Report]")
+    lines.append("delete all [Report]")
     lines.append(f"add [AnalysisReport] from {report_library} to all [Zone]")
 
     # ---------------------------------------------
     # Remove existing ObsPred table and add HarvestObsPred to data store
     # ---------------------------------------------
-    #lines.append("delete all [PredictedObserved]")
+    lines.append("delete all [PredictedObserved]")
+    lines.append("delete all [PredictedObserved]")
     
-    lines.append("add new PredictedObserved to [DataStore] name HarvestObsPred")
-    lines.append("[HarvestObsPred].PredictedTableName  = AnalysisReport")
-    lines.append("[HarvestObsPred].ObservedTableName  = Observed")
-    lines.append("[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
-    lines.append("[HarvestObsPred].FieldName2UsedForMatch  = Wheat.Phenology.CurrentStageName")
+    # lines.append("add new PredictedObserved to [DataStore] name HarvestObsPred")
+    # lines.append("[HarvestObsPred].PredictedTableName  = AnalysisReport")
+    # lines.append("[HarvestObsPred].ObservedTableName  = Observed")
+    # lines.append("[HarvestObsPred].FieldNameUsedForMatch  = SimulationName")
+    # lines.append("[HarvestObsPred].FieldName2UsedForMatch  = Wheat.Phenology.CurrentStageName")
         
-    lines.append("add new PredictedObserved to DataStore name DailyObsPred")
-    lines.append("[DailyObsPred].PredictedTableName  = AnalysisReport")
-    lines.append("[DailyObsPred].ObservedTableName  = Observed")
-    lines.append("[DailyObsPred].FieldNameUsedForMatch  = SimulationName")
-    lines.append("[DailyObsPred].FieldName2UsedForMatch  = Clock.Today")
+    # lines.append("add new PredictedObserved to DataStore name DailyObsPred")
+    # lines.append("[DailyObsPred].PredictedTableName  = AnalysisReport")
+    # lines.append("[DailyObsPred].ObservedTableName  = Observed")
+    # lines.append("[DailyObsPred].FieldNameUsedForMatch  = SimulationName")
+    # lines.append("[DailyObsPred].FieldName2UsedForMatch  = Clock.Today")
     
     # ---------------------------------------------
     # Inject Spectral model into each simulation
@@ -259,8 +343,6 @@ if "Simulation.Name" in raw.columns:
 
 # ✅ Convert to tidy format
 tidy = to_tidy(raw, config=CONFIG, additional_index_maps=additional_index_maps)
-
-# %%
 
 # %% [markdown]
 # # Harvest predictions
