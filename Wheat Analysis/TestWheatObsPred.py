@@ -304,7 +304,7 @@ def load_branch_data(config, apply_fn):
 SIM_FILES = [
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Wheat.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\LincolnUni.apsimx'),
-    Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
+    #Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\FAR\FAR.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\GxExM\GxExM.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\Pask\PaskExperiments.apsimx'),
     Path(r'C:\GitHubRepos\ApsimX\Tests\Validation\Wheat\UoM_WinterVsSpring\Dookie2024.apsimx'),
@@ -321,8 +321,8 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branches":  { "master": "UoM_Wheat", "working": "WheatNeil", "working V2": "WheatHamish"},
-    "run_branches":  ["master", "working", "working V2"],
-    #"run_branches": [],
+    #"run_branches":  ["master", "working", "working V2"],
+    "run_branches": [],
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -827,9 +827,9 @@ TestSetMap = {
 'Lincoln2010':'TestSet',
 'Lincoln2014':'TestSet',
 'Lincoln2015':'TestSet',
-'Lincoln2021':'TestSet',
-'Lincoln2023':'TestSet',
-'Lincoln2024':'TestSet',
+'Lincoln2021':'LincolnUni',
+'Lincoln2023':'LincolnUni',
+'Lincoln2024':'LincolnUni',
 'Linconln2015Nit0IrrFull':'TestSet',
 'Linconln2015Nit0IrrNil':'TestSet',
 'Linconln2015Nit250IrrFull':'TestSet',
@@ -1236,9 +1236,9 @@ TestSetMap = {
 'FAR WAG W22-03CvV12167-048':'FAR',
 'FAR WAG W22-03CvValiant':'FAR',
 'FAR WAG W22-03CvVixen':'FAR',
-'Pask LC07':'TestSet',
-'Pask TT06':'TestSet',
-'Pask TT07':'TestSet',
+'Pask LC07':'Pask',
+'Pask TT06':'Pask',
+'Pask TT07':'Pask',
 'Gatton2014CV29B':'GxExM',
 'Gatton2014CV5A':'GxExM',
 'Gatton2014CV60A':'GxExM',
@@ -1544,7 +1544,7 @@ def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = None, filter_dict
         index_vars.append('Clock.Today')
         group_vars = ['Simulation.Name','Clock.Today']
         master_obs = data.obs[index_vars + [var]]
-        branch_pred = data.pred[index_vars + [var]]
+        branch_pred = data.pred.loc[data.pred.branch == plot_branch, index_vars + [var]]
 
     agg_dict = {
         col: 'first'
@@ -1660,19 +1660,20 @@ plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType',mode='harve
 # %%
 plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest')
 
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest')
+
 # %% [markdown]
 # # Daily
 
 # %%
-plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='Wheat.SowingData.Cultivar')
+plot_obs_pred_by_branch("Wheat.AboveGround.Wt",demark_by='ProjectGroup')
 
 # %%
-plot_obs_pred_by_branch("Wheat.AboveGround.Wt",demark_by='Wheat.SowingData.Cultivar',
-                       filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "WWHI", 
-                                      'filter_vars' : ["ProjectGroup"]})
+plot_obs_pred_by_branch("Wheat.AboveGround.Wt",demark_by='Experiment',
+                       filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "TestSet", 
+                                      'filter_vars' : ["ProjectGroup"]},
+                       mode='harvest')
 
 # %%
-stats_results
-
-# %%
-data.obs[data.obs['Simulation.Name']=='Lincoln2024SD16AprNHigh']
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='ProjectGroup')

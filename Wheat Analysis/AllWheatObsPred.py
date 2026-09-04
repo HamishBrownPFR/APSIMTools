@@ -311,7 +311,7 @@ def write_apply_file(sim_file):
     # ---------------------------------------------
     # Inject Spectral model into each simulation
     # ---------------------------------------------
-    lines.append("delete all [Spectral]")
+    #lines.append("delete all [Spectral]")
     lines.append("add new Spectral to all [Zone]")
     
     # ---------------------------------------------

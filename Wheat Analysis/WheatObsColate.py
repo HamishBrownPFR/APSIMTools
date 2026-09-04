@@ -94,6 +94,9 @@ def MeanValue(df, variable):
 def SumValues(df, variable):
     return df[variable].sum()
 
+def MaxValue(df, variable):
+    return df[variable].max()
+
 
 # %% [markdown]
 # ## data class
@@ -2329,6 +2332,10 @@ data.aggregate_sim_values('Wheat.Leaf.StemPopulation','Wheat.Leaf.StemPopulation
                    filter_fn = lambda df: df["Wheat.Phenology.Stage"] > 7.5)
 
 # %%
+data.aggregate_sim_values('Wheat.Leaf.StemPopulation','Wheat.Leaf.StemPopulation.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
 data.aggregate_sim_values('Wheat.Stem.Wt','Wheat.Stem.Wt.Anthesis',
                    fn = value_at_stage(8,6.5,8.5))
 
@@ -2465,6 +2472,23 @@ data.aggregate_sim_values('IWeather.MeanT','IWeather.MeanT.Critical',
                            filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
                          (df["Wheat.Phenology.Stage"] < 8.1))
 
+# %%
+data.aggregate_sim_values('Wheat.Leaf.Live.Wt','Wheat.Leaf.Live.Wt.Max',
+                          fn = MaxValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('Wheat.Leaf.Wt','Wheat.Leaf.Wt.Max',
+                          fn = MaxValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('Wheat.Leaf.Dead.Wt','Wheat.Leaf.Dead.Wt.Max',
+                          fn = MaxValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 8))
+
 # %% [markdown]
 # # Spike Wt
 
@@ -2573,7 +2597,7 @@ xyPlot('Wheat.Leaf.Wt',
               xlim = (0,4000))
 
 # %%
-TTs = ['TT00','TT01','TT02','TT03','TT04','TT05','TT06','TT07']
+TTs = ['Wheat.Phenology.AccumulatedTT','TT00','TT01','TT02','TT03','TT04','TT05','TT06']
 
 fig = panel_xyPlot(
     'Wheat.Leaf.Wt',
@@ -2619,6 +2643,21 @@ xyPlot('Wheat.Leaf.Dead.Wt',
 
 # %%
 xyPlot('Wheat.Leaf.Dead.Wt')
+
+# %%
+xyPlot('Wheat.Leaf.Dead.Wt')
+
+# %% [markdown]
+# ## Leaf Reallocation
+
+# %%
+xyPlot(
+xvar = 'Wheat.Leaf.Wt.Max',
+yvar = 'Wheat.Leaf.Dead.Wt.Max',
+xlim=None, style=experiment_style, leg_ncols=2)
+add_linear([0,500],0.75,0)
+add_linear([0,500],0.55,0)
+add_linear([0,1000],0.35,0)
 
 # %% [markdown]
 # # Ear Wt
@@ -2671,11 +2710,30 @@ xyPlot('Wheat.Leaf.SpecificAreaCanopy',
        style= experiment_style,
        leg_ncols=2)
 
+
 # %%
-xyPlot('Wheat.Leaf.SpecificAreaCanopy',
-      xvar= 'Wheat.Phenology.AccumulatedTT', 
-      xlim = (0,3100),
-      ylim = (0,0.04))
+xyPlot('Wheat.Leaf.SpecificAreaCanopy', 
+       ylim = (0,0.04),
+       style= experiment_style,
+       leg_ncols=2,
+       filter_fn = lambda df: df['Wheat.Phenology.Stage'] <8)
+slaStage = [2,5.5,8]
+slaVal = [0.032,0.032, 0.02]
+plt.plot(slaStage,slaVal,'-')
+
+# %%
+#  Stem + Spike N is closely correlated to Stem N so we can estimate from this relationship where we have stem wt recorded but no spike wt
+data.derive('Wheat.SLA.Max',
+            lambda df: np.interp(df['Wheat.Phenology.Stage'], slaStage,slaVal) )
+
+
+# %%
+data.derive('Wheat.SLA.diff',
+            lambda df: df['Wheat.SLA.Max']-df['Wheat.Leaf.SpecificAreaCanopy'])
+
+# %%
+data.derive('Wheat.SLA.frac',
+            lambda df: df['Wheat.Leaf.SpecificAreaCanopy']/df['Wheat.SLA.Max'])
 
 # %%
 RMeanVars = [
@@ -2688,10 +2746,69 @@ RMeanVars = [
 'Wheat.Phenology.Photoperiod'
 ]
 
-fig = panel_xyPlot(yvar = 'Wheat.Leaf.SpecificAreaCanopy',
+fig = panel_xyPlot(yvar = 'Wheat.SLA.frac',
     xvars = RMeanVars,
              panel_ncols=2, xlim=None, 
-                  style=experiment_style_noLeg)
+                  style=experiment_style_noLeg,
+                  filter_fn = lambda df: df['Wheat.Phenology.Stage'] <6.5)
+
+# %%
+RMeanVars = [
+'Wheat.Phenology.PTQ.Mean7',
+'Wheat.Phenology.ThermalTime.Mean7',
+'IWeather.MinT.Mean7',
+'IWeather.MaxT.Mean7',
+'IWeather.MeanT.Mean7',
+'IWeather.Radn.Mean7',
+'Wheat.Phenology.Photoperiod'
+]
+
+fig = panel_xyPlot(yvar = 'Wheat.SLA.diff',
+    xvars = RMeanVars,
+             panel_ncols=2, xlim=None, 
+                  style=experiment_style_noLeg,
+                  filter_fn = lambda df: df['Wheat.Phenology.Stage'] <6.5)
+
+# %%
+xyPlot('Wheat.Leaf.SpecificAreaCanopy',
+      xvar= 'Wheat.Phenology.AccumulatedTT', 
+      xlim = (0,3100),
+      ylim = (0,0.04),
+      filter_fn = lambda df: df['Wheat.Phenology.Stage'] <8)
+slaTt = [0,3000]
+slaTtVal = [0.037,0.012]
+plt.plot(slaTt,slaTtVal,'-')
+
+# %%
+#  Stem + Spike N is closely correlated to Stem N so we can estimate from this relationship where we have stem wt recorded but no spike wt
+data.derive('Wheat.SLATt.Max',
+            lambda df: np.interp(df['Wheat.Phenology.Stage'], slaTt,slaTtVal) )
+
+
+# %%
+data.derive('Wheat.SLATt.diff',
+            lambda df: df['Wheat.SLATt.Max']-df['Wheat.Leaf.SpecificAreaCanopy'])
+
+# %%
+data.derive('Wheat.SLATt.frac',
+            lambda df: df['Wheat.Leaf.SpecificAreaCanopy']/df['Wheat.SLATt.Max'])
+
+# %%
+RMeanVars = [
+'Wheat.Phenology.PTQ.Mean30',
+'Wheat.Phenology.ThermalTime.Mean30',
+'IWeather.MinT.Mean30',
+'IWeather.MaxT.Mean30',
+'IWeather.MeanT.Mean30',
+'IWeather.Radn.Mean30',
+'Wheat.Phenology.Photoperiod'
+]
+
+fig = panel_xyPlot(yvar = 'Wheat.SLATt.diff',
+    xvars = RMeanVars,
+             panel_ncols=2, xlim=None, 
+                  style=experiment_style_noLeg,
+                  filter_fn = lambda df: df['Wheat.Phenology.Stage'] <8)
 
 # %% [markdown]
 # ## Radn normed 
@@ -2959,7 +3076,10 @@ plt.plot([0,2.5,4.5,8],
          [1,1,4,20],'-',color='k')
 
 # %%
-xyPlot('Wheat.Leaf.StemNumberPerPlant',xvar="Wheat.Phenology.AccumulatedTT",xlim=(0,800))
+xyPlot('Wheat.Leaf.StemNumberPerPlant',xvar="Wheat.Phenology.AccumulatedTT",xlim=(0,3000),
+      style = experiment_style_noLeg)
+plt.plot([0,300,500,950],
+         [1,1,4,20],'-',color='k')
 
 # %%
 pannel_per_experment('Wheat.Leaf.StemNumberPerPlant')
@@ -2975,9 +3095,6 @@ xyPlot('Wheat.Leaf.StemPopulation',
       style=experiment_style,
       leg_ncols=4)
 
-# %%
-pannel_per_experment('Wheat.Leaf.StemPopulation')
-
 # %% [markdown]
 # ## Final Stem Numbers
 
@@ -2985,9 +3102,9 @@ pannel_per_experment('Wheat.Leaf.StemPopulation')
 xyPlot(
 xvar = 'Wheat.Population',
 yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
-xlim=None)
+xlim=None, style=experiment_style, leg_ncols=2)
 xs = range(40,300)
-ys = [1000/(x+0) for x in xs]
+ys = [700/(x+0) for x in xs]
 plt.plot(xs,ys,'-',color='k',label='y=600/x')
 
 # %%
@@ -3019,9 +3136,23 @@ ys = [600,600]
 plt.plot(xs,ys,'-',color='k',label='y=x')
 
 # %%
+
+# %%
+#  Stem + Spike N is closely correlated to Stem N so we can estimate from this relationship where we have stem wt recorded but no spike wt
+data.derive('Wheat.AboveGround.Wt.PerPlant.Anthesis',
+            lambda df: df['Wheat.AboveGround.Wt.Anthesis']/df['Wheat.Population'] )
+
+
+# %%
+#  Stem + Spike N is closely correlated to Stem N so we can estimate from this relationship where we have stem wt recorded but no spike wt
+data.derive('Wheat.Wt.PerStem.Anthesis',
+            lambda df: df['Wheat.AboveGround.Wt.Anthesis']/df['Wheat.Leaf.StemPopulation.Anthesis'] )
+
+
+# %%
 xyPlot(
-xvar = 'Wheat.Stem.Wt.Anthesis',
-yvar = 'Wheat.Leaf.StemPopulation',
+xvar = 'Wheat.AboveGround.Wt.PerPlant.Anthesis',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
 xlim=None,
 style=experiment_style,
 leg_ncols=2,
@@ -3029,8 +3160,23 @@ size_spec={"var": "Wheat.Grain.Wt","map": None,
            "default": 10, "max":200, "min":100},
 aggregate=True
 )
-xs = [0,300]
-ys = [600,600]
+xs = [0,33]
+ys = [1,11]
+plt.plot(xs,ys,'-',color='k',label='y=x')
+
+# %%
+xyPlot(
+xvar = 'Wheat.AboveGround.Wt.PerPlant.Anthesis',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
+xlim=None,
+style=experiment_style,
+leg_ncols=2,
+size_spec={"var": "Wheat.Grain.Wt","map": None,
+           "default": 10, "max":200, "min":100},
+aggregate=True
+)
+xs = [0,33]
+ys = [1,11]
 plt.plot(xs,ys,'-',color='k',label='y=x')
 
 # %%
