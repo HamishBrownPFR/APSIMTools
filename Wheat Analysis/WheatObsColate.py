@@ -321,7 +321,8 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branch":  "UoM_Wheat",
-    "run_sims": True,
+    #"run_sims": True,
+    "run_sims": False,
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -2657,7 +2658,7 @@ yvar = 'Wheat.Leaf.Dead.Wt.Max',
 xlim=None, style=experiment_style, leg_ncols=2)
 add_linear([0,500],0.75,0)
 add_linear([0,500],0.55,0)
-add_linear([0,1000],0.35,0)
+add_linear([0,1000],0.25,0)
 
 # %% [markdown]
 # # Ear Wt
@@ -3292,7 +3293,8 @@ xvar = 'Wheat.StemPlusSpikeWt.Anthesis',
 yvar = 'Wheat.Grain.Number',
 aggregate=True,
 xlim=None)
-add_linear([0,1600],20)
+add_linear([0,1600],20,0)
+add_linear([0,1600],30,0)
 plt.ylim(0,40000)
 
 # %%
@@ -3301,6 +3303,13 @@ style=experiment_style, leg_ncols=2,
 xlim=None,aggregate=True)
 add_linear([0,1600],20)
 plt.ylim(0,40000)
+
+# %%
+data.obs[data.obs['Experiment']=='Lincoln2015'][['Simulation.Name','Wheat.GrainNoPerGofDM','Wheat.Leaf.Live.NConc.Anthesis']].dropna()
+
+# %%
+thisData = data.obs[data.obs['Experiment']=='Lincoln2015'][['Simulation.Name','Wheat.GrainNoPerGofDM','Wheat.Leaf.Live.NConc.Anthesis']].dropna()
+plt.plot(thisData['Wheat.Leaf.Live.NConc.Anthesis'],thisData['Wheat.GrainNoPerGofDM'],'o')
 
 # %% [markdown]
 # ## Per Stem + spike N
@@ -3325,7 +3334,7 @@ plt.ylim(0,40000)
 xyPlot(xvar = 'Wheat.Leaf.Live.Wt.Anthesis',yvar = 'Wheat.Grain.Number',
     xlim=None, aggregate=True)
 xs=[0,600]
-slope = 65
+slope = 85
 add_linear(xs,slope)
 plt.ylim(0,40000)
 

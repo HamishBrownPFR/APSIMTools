@@ -134,6 +134,7 @@
         "[Wheat].Phenology.Zadok.Stage",
         "[Wheat].SowingData.Cultivar",
         "[Wheat].Population",
+        "[Wheat].Leaf.Photosynthesis.RueAct",
         "[TT00]",
         "[TT01]",
         "[TT02]",
