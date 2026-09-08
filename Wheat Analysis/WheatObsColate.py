@@ -203,6 +203,7 @@ def load_branch_data(config, apply_fn):
     for sim in config["sim_files"]:
 
         db = sim.parent / f"{sim.stem}.db"
+        hold_db = sim.parent / f"{sim.stem}_{git_branch}_hold.db"
 
         # --- Run APSIM ---
         if config['run_sims'] == True:
@@ -211,7 +212,6 @@ def load_branch_data(config, apply_fn):
             run_apsim(sim, config, apply_fn)
 
             original_db = sim.with_suffix(".db")
-            hold_db = sim.parent / f"{sim.stem}_{git_branch}_hold.db"
 
             shutil.copyfile(original_db, hold_db)
 
@@ -222,7 +222,7 @@ def load_branch_data(config, apply_fn):
         # ======================================================
         # ✅ READ DATABASE
         # ======================================================
-        with sqlite3.connect(db) as conn:
+        with sqlite3.connect(hold_db) as conn:
 
             tables = pd.read_sql(
                 "SELECT name FROM sqlite_master WHERE type='table';",
@@ -321,8 +321,8 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branch":  "UoM_Wheat",
-    #"run_sims": True,
-    "run_sims": False,
+    "run_sims": True,
+    #"run_sims": False,
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -554,6 +554,8 @@ TestSetSizes = {"WWHI":10,
                  "TestSet":100,
                  "FAR":200,
                }
+
+
 
 plot_order = {
     'FAR': 0,
@@ -1925,6 +1927,7 @@ phenology_preds = [
 "Wheat.Phenology.Stage",
 "Wheat.Phenology.ThermalTime",
 "Wheat.Phenology.Zadok.Stage",
+"Wheat.Leaf.Photosynthesis.RueAct",
 "TT00",
 "TT01",
 "TT02",
@@ -1969,7 +1972,7 @@ def add_weather_predictors(
 
         if var not in data.pred.columns:
             continue
-
+        
         for window in mean_windows:
 
             new_name = f"{var}.Mean{window}"
@@ -2018,7 +2021,7 @@ def add_weather_predictors(
 
         if var not in data.pred.columns:
             continue
-
+        
         acc_name = f"{var}.Accum"
 
         data.pred[acc_name] = (
@@ -2034,6 +2037,9 @@ def add_weather_predictors(
 data, met_vars = add_weather_predictors(data, mean_windows=(7, 30))
 
 data = attach_pred_vars(data, met_vars)
+
+# %%
+data.pred["IWeather.Radn"]
 
 # %% [markdown]
 # # Set up experiment style
@@ -2072,6 +2078,22 @@ experiment_style_noLeg = {
         "var": "Experiment",
         "map": exp_marker_map,
         "default": "o"
+    },
+    "legend_fn":None
+}
+
+# %%
+TestSetColors = {"WWHI":'green',
+                 "GxExM":'red',
+                 "TestSet":'blake',
+                 "FAR":'yellow',
+               }
+
+TestSet_style_noLeg = {
+    "colour": {
+        "var": "ProjectGroup",
+        "map": TestSetColors,
+        "default": "lightgrey"
     },
     "legend_fn":None
 }
@@ -2395,6 +2417,10 @@ data.aggregate_sim_values('Wheat.Leaf.Live.NConc','Wheat.Leaf.Live.NConc.Anthesi
                    fn = value_at_stage(8,6.5,8.5))
 
 # %%
+data.aggregate_sim_values('Wheat.Leaf.Live.NConc','Wheat.Leaf.Live.NConc.Anthesis',
+                   fn = value_at_stage(8,6.5,8.5))
+
+# %%
 data.derive('Wheat.StemPlusSpike.Wt.Anthesis',
                 lambda df:
             df["Wheat.Stem.Wt.Anthesis"] +
@@ -2441,8 +2467,19 @@ data.derive('Wheat.GrainNoPerGofDM',
             #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
 
 # %%
+data.derive('Wheat.GrainNoPerStem',
+            lambda df: df['Wheat.Grain.Number']/df['Wheat.Leaf.StemPopulation.Final'] ) 
+            #  Based on analysis below, spike wt = 0.4 * stem wt at anthesis
+
+# %%
 data.aggregate_sim_values('Wheat.Phenology.PTQ','Wheat.Phenology.PTQ.Critical',
                    filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
+data.aggregate_sim_values('Wheat.Phenology.ThermalTime','Wheat.Phenology.ThermalTime.Critical',
+                          source = 'pred',
+                          filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
                          (df["Wheat.Phenology.Stage"] < 8.1))
 
 # %%
@@ -2474,6 +2511,13 @@ data.aggregate_sim_values('IWeather.MeanT','IWeather.MeanT.Critical',
                          (df["Wheat.Phenology.Stage"] < 8.1))
 
 # %%
+data.aggregate_sim_values('Wheat.Leaf.Photosynthesis.RueAct','Wheat.Leaf.Photosynthesis.RueAct.Critical',
+                          source = 'pred',
+                          fn = MeanValue,
+                           filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5.9) & 
+                         (df["Wheat.Phenology.Stage"] < 8.1))
+
+# %%
 data.aggregate_sim_values('Wheat.Leaf.Live.Wt','Wheat.Leaf.Live.Wt.Max',
                           fn = MaxValue,
                            filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 5) & 
@@ -2489,6 +2533,10 @@ data.aggregate_sim_values('Wheat.Leaf.Wt','Wheat.Leaf.Wt.Max',
 data.aggregate_sim_values('Wheat.Leaf.Dead.Wt','Wheat.Leaf.Dead.Wt.Max',
                           fn = MaxValue,
                            filter_fn = lambda df: (df["Wheat.Phenology.Stage"] > 8))
+
+# %%
+data.derive('Wheat.RueActPerTt',
+            lambda df: df['Wheat.Leaf.Photosynthesis.RueAct.Critical']/df['Wheat.Phenology.ThermalTime.Critical'] ) 
 
 # %% [markdown]
 # # Spike Wt
@@ -3293,7 +3341,7 @@ xvar = 'Wheat.StemPlusSpikeWt.Anthesis',
 yvar = 'Wheat.Grain.Number',
 aggregate=True,
 xlim=None)
-add_linear([0,1600],20,0)
+add_linear([0,1600],23,0)
 add_linear([0,1600],30,0)
 plt.ylim(0,40000)
 
@@ -3301,15 +3349,9 @@ plt.ylim(0,40000)
 xyPlot(xvar = 'Wheat.StemPlusSpikeWt.Anthesis',yvar = 'Wheat.Grain.Number',
 style=experiment_style, leg_ncols=2,
 xlim=None,aggregate=True)
-add_linear([0,1600],20)
+add_linear([0,1600],20,0)
+add_linear([0,1600],30,0)
 plt.ylim(0,40000)
-
-# %%
-data.obs[data.obs['Experiment']=='Lincoln2015'][['Simulation.Name','Wheat.GrainNoPerGofDM','Wheat.Leaf.Live.NConc.Anthesis']].dropna()
-
-# %%
-thisData = data.obs[data.obs['Experiment']=='Lincoln2015'][['Simulation.Name','Wheat.GrainNoPerGofDM','Wheat.Leaf.Live.NConc.Anthesis']].dropna()
-plt.plot(thisData['Wheat.Leaf.Live.NConc.Anthesis'],thisData['Wheat.GrainNoPerGofDM'],'o')
 
 # %% [markdown]
 # ## Per Stem + spike N
@@ -3376,15 +3418,28 @@ add_linear(xs,slope)
 plt.ylim(0,40000)
 
 # %% [markdown]
+# ## per Stem population
+
+# %%
+xyPlot(xvar = 'Wheat.Leaf.StemPopulation',yvar = 'Wheat.Grain.Number',
+    style=cultivar_style, leg_ncols=2,
+       xlim=None, aggregate=True)
+xs=[0,800]
+slope = 50
+add_linear(xs,slope)
+plt.ylim(0,40000)
+
+# %% [markdown]
 # ## per met conditions
 
 # %%
 CMeanVars = [
 'Wheat.Phenology.PTQ.Critical',
+'Wheat.RueActPerTt',
 'IWeather.MinT.Critical',
 'IWeather.MaxT.Critical',
 'IWeather.MeanT.Critical',
-'IWeather.Radn.Critical'
+'IWeather.Radn.Critical',
 ]
 
 fig = panel_xyPlot(
@@ -3406,12 +3461,49 @@ CMeanVars = [
 ]
 
 fig = panel_xyPlot(
+    'Wheat.GrainNoPerStem',
+    CMeanVars,
+    panel_ncols=2,
+    xlim=None,
+    ylim=(0,75),
+    aggregate=True,
+    style=cultivar_style_noLeg)
+
+# %% [markdown]
+# ## per biomass fractions
+
+# %%
+CMeanVars = [
+'Wheat.StemPlusSpikeWt.Anthesis',
+'Wheat.Leaf.Live.Wt.Anthesis',
+'Wheat.Stem.Wt.Anthesis',
+'Wheat.AboveGround.Wt.Anthesis',
+]
+
+fig = panel_xyPlot(
     'Wheat.GrainNoPerGofDM',
     CMeanVars,
     panel_ncols=2,
     xlim=None,
     aggregate=True,
     style=experiment_style_noLeg)
+
+# %%
+CMeanVars = [
+'Wheat.StemPlusSpikeWt.Anthesis',
+'Wheat.Leaf.Live.Wt.Anthesis',
+'Wheat.Stem.Wt.Anthesis',
+'Wheat.AboveGround.Wt.Anthesis',
+]
+
+fig = panel_xyPlot(
+    'Wheat.GrainNoPerStem',
+    CMeanVars,
+    panel_ncols=2,
+    xlim=None,
+    ylim=(0,75),
+    aggregate=True,
+    style=cultivar_style_noLeg)
 
 # %% [markdown]
 # ## MeanT
@@ -3454,6 +3546,28 @@ xyPlot(xvar = 'Wheat.Stem.NConc.Anthesis',yvar = 'Wheat.GrainNoPerGofStem',
 plt.ylim(0,50)
 
 # %% [markdown]
+# ## RUE act
+
+# %%
+xyPlot(xvar = 'Wheat.Leaf.Photosynthesis.RueAct.Critical',yvar = 'Wheat.GrainNoPerGofStem',
+    style=experiment_style, leg_ncols=2,
+       xlim=None, aggregate=True)
+plt.plot([0.6, 1.3, 1.6],[15, 23, 23],'-')
+plt.ylim(0,50)
+
+# %% [markdown]
+# ## PTQ critical
+
+# %%
+xyPlot(xvar = 'Wheat.Phenology.PTQ.Critical',yvar = 'Wheat.GrainNoPerGofStem',
+    style=experiment_style, leg_ncols=2,
+       size_spec={"var": "Wheat.Leaf.Live.NConc.Anthesis","map": None,
+        "default": 0, "max":100, "min":1},
+       xlim=None, aggregate=True)
+plt.plot([2, 6],[30, 15],'-')
+plt.ylim(0,50)
+
+# %% [markdown]
 # # Grain Size
 
 # %% [markdown]
@@ -3484,7 +3598,8 @@ CMeanVars = [
 'IWeather.MinT.Critical',
 'IWeather.MaxT.Critical',
 'IWeather.MeanT.Critical',
-'IWeather.Radn.Critical'
+'IWeather.Radn.Critical',
+    'Wheat.Leaf.Photosynthesis.RueAct.Critical'
 ]
 
 fig = panel_xyPlot(

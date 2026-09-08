@@ -1491,7 +1491,7 @@ stats_results = pd.DataFrame(
 
 
 # %% [markdown]
-# # Graphing
+# # Graphing code
 
 # %%
 DistinctColors = {
@@ -1526,6 +1526,9 @@ def build_style_maps(index):
 
     return colour_map, marker_map
 
+
+# %% [markdown]
+# ## get_obs_Pred_pair
 
 # %%
 def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_dict = None):
@@ -1576,13 +1579,17 @@ def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_
     return obs_pred_pair
 
 
+# %% [markdown]
+# ## plot_branch_obs_pred
+
 # %%
 def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by='branch'):
     if ax is None:
         fig, ax = plt.subplots()
         
     if demark_by:
-        demarkers = obs_pred_pair[demark_by].drop_duplicates().to_list()
+        #demarkers = obs_pred_pair[demark_by].drop_duplicates().to_list()
+        demarkers = sorted(obs_pred_pair[demark_by].dropna().unique())
         colors, markers = build_style_maps(demarkers)
     groups = markers.keys()
     for g in groups:
@@ -1591,7 +1598,7 @@ def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by='branch'):
         color_seq = groupData[demark_by].map(colors)
         ax.scatter(groupData['obs'],
            groupData['pred'],
-           s=40,
+           s=20,
            c=colors[g],
            marker=marker, 
            label=g)
@@ -1599,18 +1606,8 @@ def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by='branch'):
     return ax
 
 
-# %%
-def plot_branch_obs_pred_plain(var, branch, obs_pred_pair, ax = None, color = 'k'):
-    if ax is None:
-        fig, ax = plt.subplots()
-    ax.scatter(obs_pred_pair['obs'],
-           obs_pred_pair['pred'],
-           s=5,
-           c=color,
-           marker='o', 
-           label=branch)
-    return ax
-
+# %% [markdown]
+# ## plot_obs_pred_by_branch
 
 # %%
 def plot_obs_pred_by_branch(var, demark_by='branch', filter_dict = None, mode = '', leg=False, leg_ncols=5):
@@ -1667,7 +1664,10 @@ def plot_obs_pred_by_branch(var, demark_by='branch', filter_dict = None, mode = 
         fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0), ncol=leg_ncols)
 
 # %% [markdown]
-# # Harvest
+# # Graphs
+
+# %% [markdown]
+# ## Yield
 
 # %%
 plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by = 'Experiment',mode='harvest', leg=True)
@@ -1682,68 +1682,63 @@ plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType',mode='harve
 plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=9)
 
 # %% [markdown]
-# # Daily
+# ## Grain Number
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by = 'Experiment',mode='harvest', leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='ProjectGroup',mode='harvest',leg=True,leg_ncols=6)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='DevelopmentType',mode='harvest',leg=True,leg_ncols=6)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=6)
+
+# %% [markdown]
+# ## Stem Wt
 
 # %%
 plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='ProjectGroup')
 
 # %%
-plot_obs_pred_by_branch("Wheat.AboveGround.Wt",demark_by='Experiment',
-                       filter_dict = {'filter_fn':lambda df: df["ProjectGroup"] == "TestSet", 
-                                      'filter_vars' : ["ProjectGroup"]},
-                       mode='harvest')
+plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='Experiment',leg=True)
+
+# %% [markdown]
+# ## LAI
 
 # %%
-plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='ProjectGroup')
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='ProjectGroup',leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='DevelopmentType',leg=True)
+
 
 # %% [markdown]
 # # All harvest vars
 
-# %%
-harvest_vars = [
-'Wheat.Grain.Wt',    
-'Wheat.Grain.Number',
-'Wheat.Grain.Size',
-'Wheat.AboveGround.Wt',
-'Wheat.AboveGround.N',
- #'Wheat.AboveGround.NConc',
-
- 'Wheat.Ear.N',
- 'Wheat.Ear.NConc',
- 'Wheat.Ear.Wt',
- #'Wheat.Grain.Yield',
- 'Wheat.Grain.N',
- 'Wheat.Grain.NConc',
- 
- #'Wheat.Grain.Protein',
-
- 
- 'Wheat.Leaf.Dead.N',
- 'Wheat.Leaf.Dead.NConc',
- 'Wheat.Leaf.Dead.Wt',
- 'Wheat.Leaf.Live.N',
- 'Wheat.Leaf.Live.NConc',
- #'Wheat.Leaf.N',
- #'Wheat.Leaf.NConc',
- 'Wheat.Leaf.StemPopulation',
- 'Wheat.Leaf.StemNumberPerPlant',
- #'Wheat.Leaf.Wt',
- #'Wheat.Phenology.FlagLeafDAS',
- # 'Wheat.Phenology.FloweringDAS',
- # 'Wheat.Phenology.HeadingDAS',
- # 'Wheat.Phenology.MaturityDAS',
- # 'Wheat.Phenology.TerminalSpikeletDAS',
- # 'Wheat.Spike.HeadNumber',
- # 'Wheat.Spike.N',
- # 'Wheat.Spike.NConc',
- 'Wheat.Spike.Wt',
- 'Wheat.Stem.N',
- 'Wheat.Stem.NConc',
- 'Wheat.Stem.Wt']
-
+# %% [markdown]
+# ## plot_branch_obs_pred_plain
 
 # %%
-def plot_obs_pred_by_var(harvest_vars, demark_by='branch'):
+def plot_branch_obs_pred_plain(var, branch, obs_pred_pair, ax = None, color = 'k'):
+    if ax is None:
+        fig, ax = plt.subplots()
+    ax.scatter(obs_pred_pair['obs'],
+           obs_pred_pair['pred'],
+           s=5,
+           c=color,
+           marker='o', 
+           label=branch)
+    return ax
+
+
+# %% [markdown]
+# ## plot_obs_pred_by_var
+
+# %%
+def plot_obs_pred_by_var(harvest_vars, demark_by='branch', leg=True):
     fig, axes = plt.subplots(
         nrows=5,
         ncols=5,
@@ -1759,111 +1754,38 @@ def plot_obs_pred_by_var(harvest_vars, demark_by='branch'):
     for ax, var in zip(axes, harvest_vars):
         ax_max = 0
         stats_text = ""
-        for plot_branch in branches:
-            obs_pred_pair = get_obs_pred_pair(plot_branch, var)
-            colors, markers = build_style_maps(branches)
-            plot_branch_obs_pred_plain(var, plot_branch, obs_pred_pair, ax, colors[plot_branch])
-    
-            ax_max = max(ax_max,max(obs_pred_pair.loc[:,'pred'].max(),obs_pred_pair.loc[:,'obs'].max()))
-            stats = compute_stats(obs_pred_pair)
-            n = len(obs_pred_pair['obs'].dropna())
-            stats_results.loc[(var, plot_branch), :] = stats
-            stats_text += f"{stats['NSE']:.2f}\n"
-                
-        ax.text(0.05,0.98,stats_text,
-                transform=ax.transAxes,
-                   ha="left",
-                   va="top",
-                   fontsize=8,
-                   bbox=dict(facecolor="white", alpha=0.6, edgecolor="none"))
-        ax.text(0.05, 1.01, var, transform=ax.transAxes, ha = 'left',  va ='bottom', fontsize=8)            
-        ax.plot([0,ax_max],[0,ax_max],'--',color='k')    
+        if var != "":
+            for plot_branch in branches:
+                obs_pred_pair = get_obs_pred_pair(plot_branch, var)
+                colors, markers = build_style_maps(branches)
+                plot_branch_obs_pred_plain(var, plot_branch, obs_pred_pair, ax, colors[plot_branch])
+        
+                ax_max = max(ax_max,max(obs_pred_pair.loc[:,'pred'].max(),obs_pred_pair.loc[:,'obs'].max()))
+                stats = compute_stats(obs_pred_pair)
+                n = len(obs_pred_pair['obs'].dropna())
+                stats_results.loc[(var, plot_branch), :] = stats
+                stats_text += f"{stats['NSE']:.2f}\n"
+                    
+            ax.text(0.05,0.98,stats_text,
+                    transform=ax.transAxes,
+                       ha="left",
+                       va="top",
+                       fontsize=8,
+                       bbox=dict(facecolor="white", alpha=0.6, edgecolor="none"))
+            ax.text(0.05, 1.01, var, transform=ax.transAxes, ha = 'left',  va ='bottom', fontsize=8)            
+            ax.plot([0,ax_max],[0,ax_max],'--',color='k')    
+    if leg == True:
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.03), ncol=3)
+
+# %%
+harvest_vars = [
+'Wheat.Grain.Wt','Wheat.Grain.N','Wheat.Grain.NConc','Wheat.Grain.Number','Wheat.Grain.Size',
+'Wheat.AboveGround.Wt','Wheat.AboveGround.N',"","","",
+'Wheat.Ear.Wt','Wheat.Ear.N','Wheat.Ear.NConc',"","",
+'Wheat.Stem.Wt','Wheat.Stem.N','Wheat.Stem.NConc','Wheat.Spike.Wt',"",
+'Wheat.Leaf.Dead.Wt','Wheat.Leaf.Dead.N','Wheat.Leaf.Dead.NConc', 'Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant',
+]
 
 # %%
 plot_obs_pred_by_var(harvest_vars)
-
-# %%
-test = get_obs_pred_pair(all_branches, 'Wheat.Stem.Wt', mode = 'harvest', demark_by = 'branch', filter_dict = None)
-
-# %%
-test
-
-# %%
-master_obs_means
-
-# %%
-group_vars = ['Simulation.Name','branch']
-join_vars = [v for v in group_vars if v != 'branch']
-var = 'Wheat.Stem.Wt'
-obs_pred_pair = (
-    branch_pred_means
-    .rename(columns={var: 'pred'})
-    .reset_index()
-    .merge(
-        master_obs_means[[var]]
-            .rename(columns={var: 'obs'})
-            .reset_index(),
-        on=join_vars,
-        how='left'
-    )
-    #.set_index(join_vars)
-)
-
-# %%
-obs_pred_pair
-
-# %%
-test
-
-# %%
-test.index.get_level_values(1).drop_duplicates()
-
-# %%
-pred.branch.drop_duplicates()
-
-# %%
-plot_branch_obs_pred('Wheat.Stem.Wt', test, ax = None, demark_by='branch')
-
-# %%
-harvest_vars = list(data.harvest_obs.dropna(how='all',axis=1).columns)
-
-# %%
-harvest_vars
-
-
-# %%
-def get_obs_pred_pairs(var):
-    index_vars = ['branch',
-                  'Simulation.Name'] 
-    index_vars.append('Wheat.Phenology.CurrentStageName')
-    group_vars = ['Simulation.Name','branch']
-    master_obs = data.harvest_obs[index_vars + [var]]
-    branch_pred = data.harvest_pred[index_vars+[var]]
-
-    agg_dict = {
-        col: 'first'
-        for col in index_vars
-        if col not in group_vars
-    }
-    agg_dict[var] = 'mean'
-
-    master_obs_means = master_obs.groupby(group_vars, as_index=False).agg(agg_dict).dropna(subset=[var])
-    master_obs_means.set_index('Simulation.Name',inplace=True)
-
-    branch_pred_means = branch_pred.groupby(group_vars, as_index=False).agg(agg_dict).dropna(subset=[var])
-    branch_pred_means.set_index(['Simulation.Name','branch'],inplace=True)
-
-    
-    obs_pred_pair = branch_pred_means.reindex(master_obs_means.index).rename(columns={var: "pred"}) 
-    obs_pred_pair["obs"] = master_obs_means[var]
-
-    return obs_pred_pair, master_obs_means, branch_pred_means
-
-# %%
-pair, obs, pred = get_obs_pred_pairs('Wheat.Stem.Wt')
-
-# %%
-obs
-
-# %%
-pred
