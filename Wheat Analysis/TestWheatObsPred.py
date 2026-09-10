@@ -322,9 +322,9 @@ SIM_FILES = [
 all_branches = ["master", "working", "working V2"]
 
 CONFIG = {
-    "git_branches":  { "master": "UoM_Wheat", "working": "WheatWinterCereal", "working V2": "WheatHamish"},
+    "git_branches":  { "master": "UoM_Wheat", "simpleLeaf": "WheatWinterCereal", "sl_working": "WheatHamish"},
     #"run_branches": all_branches,
-    "run_branches": ["working V2"],
+    "run_branches": ["master", "simpleLeaf", "sl_working"],
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -1531,7 +1531,7 @@ def build_style_maps(index):
 # ## get_obs_Pred_pair
 
 # %%
-def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_dict = None):
+def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_dict = None, additional_indices = []):
     index_vars = ['branch',
                   'Simulation.Name'] 
     
@@ -1540,23 +1540,25 @@ def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_
 
     if filter_dict:
         index_vars += filter_dict['filter_vars']
-        
+
     if mode == 'harvest':
         index_vars.append('Wheat.Phenology.CurrentStageName')
         group_vars = ['Simulation.Name']
         master_obs = data.harvest_obs[index_vars + [var]]
-        branch_pred = data.harvest_pred.loc[data.harvest_pred.branch == plot_branch, index_vars+[var]]
+        branch_pred = data.harvest_pred.loc[data.harvest_pred.branch == plot_branch, 
+                                            index_vars + additional_indices + [var]]
     else:
         index_vars.append('Clock.Today')
         group_vars = ['Simulation.Name','Clock.Today']
         master_obs = data.obs[index_vars + [var]]
-        branch_pred = data.pred.loc[data.pred.branch == plot_branch, index_vars + [var]]
+        branch_pred = data.pred.loc[data.pred.branch == plot_branch, 
+                                    index_vars + additional_indices + [var]]
 
     agg_dict = {
-        col: 'first'
-        for col in index_vars
-        if col not in group_vars
-    }
+                col: 'first'
+                for col in index_vars
+                if col not in group_vars
+                }
     agg_dict[var] = 'mean'
 
     if filter_dict:
@@ -1570,6 +1572,10 @@ def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_
         Mask = filter_dict["filter_fn"](branch_pred)
         branch_pred = branch_pred.loc[Mask, :]
 
+    if additional_indices:
+        for ai in additional_indices:
+            agg_dict[ai] = 'mean'
+    
     branch_pred_means = branch_pred.groupby(group_vars, as_index=False).agg(agg_dict).dropna(subset=[var])
     branch_pred_means.set_index(group_vars,inplace=True)
     
@@ -1583,21 +1589,24 @@ def get_obs_pred_pair(plot_branch, var, mode = '', demark_by = 'branch', filter_
 # ## plot_branch_obs_pred
 
 # %%
-def plot_branch_obs_pred(var, obs_pred_pair, ax = None, demark_by='branch'):
+def plot_branch_obs_pred(obs_pred_pair, x = 'obs', y = 'pred', ax = None, demark_by='branch'):
     if ax is None:
         fig, ax = plt.subplots()
         
     if demark_by:
-        #demarkers = obs_pred_pair[demark_by].drop_duplicates().to_list()
         demarkers = sorted(obs_pred_pair[demark_by].dropna().unique())
         colors, markers = build_style_maps(demarkers)
     groups = markers.keys()
+
+    if ((x == 'res') or (y == 'res')):
+        obs_pred_pair['res'] = obs_pred_pair['pred'] -  obs_pred_pair['obs']
+        
     for g in groups:
         groupData = obs_pred_pair.loc[obs_pred_pair[demark_by] == g, :]
         marker = markers[g]
         color_seq = groupData[demark_by].map(colors)
-        ax.scatter(groupData['obs'],
-           groupData['pred'],
+        ax.scatter(groupData[x],
+           groupData[y],
            s=20,
            c=colors[g],
            marker=marker, 
@@ -1628,7 +1637,7 @@ def plot_obs_pred_by_branch(var, demark_by='branch', filter_dict = None, mode = 
     
         obs_pred_pair = get_obs_pred_pair(plot_branch, var,mode = mode, demark_by=demark_by, filter_dict = filter_dict)
     
-        plot_branch_obs_pred(var, obs_pred_pair, ax, demark_by)
+        plot_branch_obs_pred(obs_pred_pair, ax=ax, demark_by=demark_by)
 
         ax_max = max(ax_max,max(obs_pred_pair.loc[:,'pred'].max(),obs_pred_pair.loc[:,'obs'].max()))
 
@@ -1789,3 +1798,72 @@ harvest_vars = [
 
 # %%
 plot_obs_pred_by_var(harvest_vars)
+
+
+# %%
+def plot_res_by_branch(var, x_var, demark_by='branch', filter_dict = None, mode = '', leg=False, leg_ncols=5):
+    fig, axes = plt.subplots(
+        nrows=1,
+        ncols=3,
+        figsize=(12, 4),
+        constrained_layout=True
+    )
+   
+    branches = CONFIG["git_branches"].keys()
+    
+    axes = np.array(axes).flatten()
+    
+    bpos = 1
+    ax_max = 0
+    for ax, plot_branch in zip(axes, branches):
+    
+        obs_pred_pair = get_obs_pred_pair(plot_branch, var, mode = '', demark_by=demark_by, filter_dict = filter_dict, additional_indices=[x_var])
+        
+        plot_branch_obs_pred(obs_pred_pair, y= 'res', x=x_var, ax=ax, demark_by=demark_by)
+
+        stats = compute_stats(obs_pred_pair)
+        n = len(obs_pred_pair['obs'].dropna())
+
+        stats_results.loc[(var, plot_branch), :] = stats
+
+        stats_text = (
+                f"{plot_branch}\n"
+                f"n = {n}\n" 
+                f"NSE = {stats['NSE']:.2f}\n"
+                f"Bias = {stats['Bias']:.2f}"
+            )
+        ax.text(0.05,0.98,stats_text,
+                transform=ax.transAxes,
+               ha="left",
+               va="top",
+               fontsize=10,
+               bbox=dict(facecolor="white", alpha=0.6, edgecolor="none")
+               )
+        if bpos == 1:
+            ax.set_ylabel(f'{var} (pred - obs)')
+        ax.set_xlabel(x_var)
+        bpos+=1
+
+    for ax, plot_branch in zip(axes, branches):
+        ax.plot([0,ax_max],[0,ax_max],'--',color='k')
+
+    if leg == True:
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0), ncol=leg_ncols)
+
+
+# %%
+var = 'Wheat.Leaf.LAI'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
+
+# %%
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+test = get_obs_pred_pair('master', 'Wheat.Leaf.LAI', mode = '', demark_by=demark_by, filter_dict = None, additional_indices=[x_var])
+plot_branch_obs_pred(test,demark_by=demark_by, y='res', x=x_var)
+
+
+# %%
+test

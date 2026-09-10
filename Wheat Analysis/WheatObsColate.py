@@ -3121,8 +3121,8 @@ xyPlot('Wheat.Leaf.StemNumberPerPlant',
 
 # %%
 xyPlot('Wheat.Leaf.StemNumberPerPlant',xvar='Wheat.Phenology.HaunStage',style=experiment_style,xlim=None)
-plt.plot([0,2.5,4.5,8],
-         [1,1,4,20],'-',color='k')
+plt.plot([0,2.5,2.5,3.5,3.5,5,5,6],
+         [1,1,2,2,3,3,5,5],'-',color='k')
 
 # %%
 xyPlot('Wheat.Leaf.StemNumberPerPlant',xvar="Wheat.Phenology.AccumulatedTT",xlim=(0,3000),
