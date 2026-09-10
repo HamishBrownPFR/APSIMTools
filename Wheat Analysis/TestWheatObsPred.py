@@ -323,8 +323,7 @@ all_branches = ["master", "working", "working V2"]
 
 CONFIG = {
     "git_branches":  { "master": "UoM_Wheat", "simpleLeaf": "WheatWinterCereal", "sl_working": "WheatHamish"},
-    #"run_branches": all_branches,
-    "run_branches": ["master", "simpleLeaf", "sl_working"],
+    "run_branches": [],# ["master", "simpleLeaf", "sl_working"],
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -1672,60 +1671,6 @@ def plot_obs_pred_by_branch(var, demark_by='branch', filter_dict = None, mode = 
         handles, labels = axes[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0), ncol=leg_ncols)
 
-# %% [markdown]
-# # Graphs
-
-# %% [markdown]
-# ## Yield
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by = 'Experiment',mode='harvest', leg=True)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='ProjectGroup',mode='harvest',leg=True,leg_ncols=6)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType',mode='harvest',leg=True)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=9)
-
-# %% [markdown]
-# ## Grain Number
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by = 'Experiment',mode='harvest', leg=True)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='ProjectGroup',mode='harvest',leg=True,leg_ncols=6)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='DevelopmentType',mode='harvest',leg=True,leg_ncols=6)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=6)
-
-# %% [markdown]
-# ## Stem Wt
-
-# %%
-plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='ProjectGroup')
-
-# %%
-plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='Experiment',leg=True)
-
-# %% [markdown]
-# ## LAI
-
-# %%
-plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='ProjectGroup',leg=True)
-
-# %%
-plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='DevelopmentType',leg=True)
-
-
-# %% [markdown]
-# # All harvest vars
 
 # %% [markdown]
 # ## plot_branch_obs_pred_plain
@@ -1787,18 +1732,9 @@ def plot_obs_pred_by_var(harvest_vars, demark_by='branch', leg=True):
         handles, labels = axes[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.03), ncol=3)
 
-# %%
-harvest_vars = [
-'Wheat.Grain.Wt','Wheat.Grain.N','Wheat.Grain.NConc','Wheat.Grain.Number','Wheat.Grain.Size',
-'Wheat.AboveGround.Wt','Wheat.AboveGround.N',"","","",
-'Wheat.Ear.Wt','Wheat.Ear.N','Wheat.Ear.NConc',"","",
-'Wheat.Stem.Wt','Wheat.Stem.N','Wheat.Stem.NConc','Wheat.Spike.Wt',"",
-'Wheat.Leaf.Dead.Wt','Wheat.Leaf.Dead.N','Wheat.Leaf.Dead.NConc', 'Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant',
-]
 
-# %%
-plot_obs_pred_by_var(harvest_vars)
-
+# %% [markdown]
+# ## plot_res_by_branch
 
 # %%
 def plot_res_by_branch(var, x_var, demark_by='branch', filter_dict = None, mode = '', leg=False, leg_ncols=5):
@@ -1814,13 +1750,16 @@ def plot_res_by_branch(var, x_var, demark_by='branch', filter_dict = None, mode 
     axes = np.array(axes).flatten()
     
     bpos = 1
-    ax_max = 0
+    x_max = 0
+    y_max = 0
     for ax, plot_branch in zip(axes, branches):
     
         obs_pred_pair = get_obs_pred_pair(plot_branch, var, mode = '', demark_by=demark_by, filter_dict = filter_dict, additional_indices=[x_var])
         
         plot_branch_obs_pred(obs_pred_pair, y= 'res', x=x_var, ax=ax, demark_by=demark_by)
 
+        x_max = max(x_max, obs_pred_pair[x_var].max())
+        y_max = max(y_max, np.abs(obs_pred_pair['res'].max()))
         stats = compute_stats(obs_pred_pair)
         n = len(obs_pred_pair['obs'].dropna())
 
@@ -1845,12 +1784,95 @@ def plot_res_by_branch(var, x_var, demark_by='branch', filter_dict = None, mode 
         bpos+=1
 
     for ax, plot_branch in zip(axes, branches):
-        ax.plot([0,ax_max],[0,ax_max],'--',color='k')
+        ax.plot([0,x_max],[0,0],'--',color='k')
+        ax.set_ylim(-y_max * 1.1,y_max*1.1)
+        ax.set_xlim(0,x_max*1.1)
 
     if leg == True:
         handles, labels = axes[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0), ncol=leg_ncols)
 
+
+# %% [markdown]
+# # All harvest vars
+
+# %%
+harvest_vars = [
+'Wheat.Grain.Wt','Wheat.Grain.N','Wheat.Grain.NConc','Wheat.Grain.Number','Wheat.Grain.Size',
+'Wheat.AboveGround.Wt','Wheat.AboveGround.N',"","","",
+'Wheat.Ear.Wt','Wheat.Ear.N','Wheat.Ear.NConc',"","",
+'Wheat.Stem.Wt','Wheat.Stem.N','Wheat.Stem.NConc','Wheat.Spike.Wt',"",
+'Wheat.Leaf.Dead.Wt','Wheat.Leaf.Dead.N','Wheat.Leaf.Dead.NConc', 'Wheat.Leaf.StemPopulation','Wheat.Leaf.StemNumberPerPlant',
+]
+
+# %%
+plot_obs_pred_by_var(harvest_vars)
+
+# %% [markdown]
+# # Harvest
+
+# %% [markdown]
+# ## Yield
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by = 'Experiment',mode='harvest', leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='ProjectGroup',mode='harvest',leg=True,leg_ncols=6)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='DevelopmentType',mode='harvest',leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Wt",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=9)
+
+# %% [markdown]
+# ## Grain Number
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by = 'Experiment',mode='harvest', leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='ProjectGroup',mode='harvest',leg=True,leg_ncols=6)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='DevelopmentType',mode='harvest',leg=True,leg_ncols=6)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Grain.Number",demark_by='Wheat.SowingData.Cultivar',mode='harvest',leg=True,leg_ncols=6)
+
+# %% [markdown]
+# # Daily 
+
+# %% [markdown]
+# ## Stem Wt
+
+# %%
+plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='ProjectGroup')
+
+# %%
+plot_obs_pred_by_branch("Wheat.Stem.Wt",demark_by='Experiment',leg=True)
+
+# %%
+var = 'Wheat.Stem.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
+
+# %%
+var = 'Wheat.Stem.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
+
+# %% [markdown]
+# ## LAI
+
+# %%
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='ProjectGroup',leg=True)
+
+# %%
+plot_obs_pred_by_branch("Wheat.Leaf.LAI",demark_by='DevelopmentType',leg=True)
 
 # %%
 var = 'Wheat.Leaf.LAI'
@@ -1859,11 +1881,37 @@ x_var = 'Wheat.Phenology.AccumulatedTT'
 plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
 
 # %%
-demark_by = 'DevelopmentType'
+var = 'Wheat.Leaf.LAI'
+demark_by = 'Experiment'
 x_var = 'Wheat.Phenology.AccumulatedTT'
-test = get_obs_pred_pair('master', 'Wheat.Leaf.LAI', mode = '', demark_by=demark_by, filter_dict = None, additional_indices=[x_var])
-plot_branch_obs_pred(test,demark_by=demark_by, y='res', x=x_var)
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
 
+# %% [markdown]
+# ## leaf Wt
 
 # %%
-test
+plot_obs_pred_by_branch("Wheat.Leaf.Live.Wt",demark_by='DevelopmentType',leg=True)
+
+# %%
+var = 'Wheat.Leaf.Live.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
+
+# %%
+var = 'Wheat.Leaf.Live.Wt'
+demark_by = 'Experiment'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
+
+# %%
+var = 'Wheat.Leaf.Live.Wt'
+demark_by = 'DevelopmentType'#'Wheat.SowingData.Cultivar'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="WWHI", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
