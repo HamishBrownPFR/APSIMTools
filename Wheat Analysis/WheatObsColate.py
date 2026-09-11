@@ -321,8 +321,8 @@ SIM_FILES = [
 
 CONFIG = {
     "git_branch":  "UoM_Wheat",
-    "run_sims": True,
-    #"run_sims": False,
+    #"run_sims": True,
+    "run_sims": False,
     "sim_files": SIM_FILES,
     "repo_path": Path(r"C:\GitHubRepos\ApsimX"),
     "apsim_exe": r"C:\GitHubRepos\ApsimX\bin\Release\net8.0\Models.exe",
@@ -414,14 +414,15 @@ DistinctColors = {
     13: "#E7298A" # magenta
 }
     
-def build_experiment_style_maps(obs_df,
-                                pred_df,
-                                colours,
-                                markers):
+def build_style_maps(obs_df,
+                    pred_df,
+                    colours,
+                    markers, 
+                    demarker):
 
     exps = sorted(
-        set(obs_df["Experiment"].dropna())
-        | set(pred_df["Experiment"].dropna())
+        set(obs_df[demarker].dropna())
+        | set(pred_df[demarker].dropna())
     )
 
     colour_ids = sorted(DistinctColors.keys())
@@ -480,7 +481,7 @@ def map_series(series, mapping=None, default=None):
 # ## Legend Functions
 
 # %%
-def experiment_legend(ax=None, ncols=2):
+def basic_legend(ax=None, ncols=2):
     if ax is None:
         ax = plt.gca()
     ax.legend(
@@ -488,7 +489,7 @@ def experiment_legend(ax=None, ncols=2):
         numpoints=1,
         ncols=ncols)
 
-def cultivar_legend(ax=None, ncols = None):
+def devType_legend(ax=None, ncols = None):
     if ax is None:
         ax = plt.gca()
 
@@ -533,94 +534,13 @@ def cultivar_legend(ax=None, ncols = None):
 
 
 # %% [markdown]
-# ## Cultivar Style
-
-# %%
-DevCols = {"Spring":"Orange",
-           "Winter":"Blue"}
-
-TestSetAlphas = {"WWHI":1.0,
-                 "GxExM":0.4,
-                 "TestSet":0.1,
-                 "FAR":0.1}
-
-TestSetMarkers = {"WWHI":'s',
-                 "GxExM":'o',
-                 "TestSet":'^',
-                 "FAR":'v'}
-
-TestSetSizes = {"WWHI":10,
-                 "GxExM":50,
-                 "TestSet":100,
-                 "FAR":200,
-               }
-
-
-
-plot_order = {
-    'FAR': 0,
-    'TestSet': 1,
-    'GxExM': 2,
-    'WWHI': 3
-}
-
-cultivar_style = {
-    "colour": {
-        "var": "DevelopmentType",
-        "map": DevCols,
-        "default": "lightgrey"
-    },
-    "marker": {
-        "var": "ProjectGroup",
-        "map": TestSetMarkers,
-        "default": "o"
-    },
-    "alpha": {
-        "var": "ProjectGroup",
-        "map": TestSetAlphas,
-        "default": 1.0
-    },
-    "size": {
-        "var": "ProjectGroup",
-        "map": TestSetSizes,
-    },
-    "legend_fn" : cultivar_legend
-    
-}
-
-cultivar_style_noLeg = {
-    "colour": {
-        "var": "DevelopmentType",
-        "map": DevCols,
-        "default": "lightgrey"
-    },
-    "marker": {
-        "var": "ProjectGroup",
-        "map": TestSetMarkers,
-        "default": "o"
-    },
-    "alpha": {
-        "var": "ProjectGroup",
-        "map": TestSetAlphas,
-        "default": 1.0
-    },
-    "size": {
-        "var": "ProjectGroup",
-        "map": TestSetSizes,
-    },
-    "legend_fn" : None
-    
-}
-
-
-# %% [markdown]
 # ## xyPlot
 
 # %%
 def xyPlot(
         yvar,
         xvar = "Wheat.Phenology.Stage",
-        style = cultivar_style,
+        style = None,
         leg_ncols = 1,
         size_spec=None, 
         source = "obs",
@@ -829,7 +749,7 @@ def transform_series(x, method="raw", **kwargs):
 # %%
 def panel_xyPlot(yvar,
             xvars,
-            style = cultivar_style,
+            style = None,
             leg_ncols = 1,
             size_spec=None, 
             source = "obs",
@@ -2038,21 +1958,101 @@ data, met_vars = add_weather_predictors(data, mean_windows=(7, 30))
 
 data = attach_pred_vars(data, met_vars)
 
-# %%
-data.pred["IWeather.Radn"]
+# %% [markdown]
+# # Set up graphing styles
 
 # %% [markdown]
-# # Set up experiment style
+# ## devType Style
+
+# %%
+DevCols = {"Spring":"Orange",
+           "Winter":"Blue"}
+
+TestSetAlphas = {"WWHI":1.0,
+                 "GxExM":0.4,
+                 "TestSet":0.1,
+                 "FAR":0.1}
+
+TestSetMarkers = {"WWHI":'s',
+                 "GxExM":'o',
+                 "TestSet":'^',
+                 "FAR":'v'}
+
+TestSetSizes = {"WWHI":10,
+                 "GxExM":50,
+                 "TestSet":100,
+                 "FAR":200,
+               }
+
+
+
+plot_order = {
+    'FAR': 0,
+    'TestSet': 1,
+    'GxExM': 2,
+    'WWHI': 3
+}
+
+devType_style = {
+    "colour": {
+        "var": "DevelopmentType",
+        "map": DevCols,
+        "default": "lightgrey"
+    },
+    "marker": {
+        "var": "ProjectGroup",
+        "map": TestSetMarkers,
+        "default": "o"
+    },
+    "alpha": {
+        "var": "ProjectGroup",
+        "map": TestSetAlphas,
+        "default": 1.0
+    },
+    "size": {
+        "var": "ProjectGroup",
+        "map": TestSetSizes,
+    },
+    "legend_fn" : devType_legend
+    
+}
+
+devType_style_noLeg = {
+    "colour": {
+        "var": "DevelopmentType",
+        "map": DevCols,
+        "default": "lightgrey"
+    },
+    "marker": {
+        "var": "ProjectGroup",
+        "map": TestSetMarkers,
+        "default": "o"
+    },
+    "alpha": {
+        "var": "ProjectGroup",
+        "map": TestSetAlphas,
+        "default": 1.0
+    },
+    "size": {
+        "var": "ProjectGroup",
+        "map": TestSetSizes,
+    },
+    "legend_fn" : None
+    
+}
+
+# %% [markdown]
+# ## Experiment style
 
 # %%
 exp_colour_map, exp_marker_map = (
-    build_experiment_style_maps(
+    build_style_maps(
         data.obs,
         data.pred,
         Colors,
-        Markers))
+        Markers, 
+        'Experiment'))
 
-# %%
 experiment_style = {
     "colour": {
         "var": "Experiment",
@@ -2064,10 +2064,9 @@ experiment_style = {
         "map": exp_marker_map,
         "default": "o"
     },
-    "legend_fn":experiment_legend
+    "legend_fn":basic_legend
 }
 
-# %%
 experiment_style_noLeg = {
     "colour": {
         "var": "Experiment",
@@ -2082,6 +2081,9 @@ experiment_style_noLeg = {
     "legend_fn":None
 }
 
+# %% [markdown]
+# ## Test set style
+
 # %%
 TestSetColors = {"WWHI":'green',
                  "GxExM":'red',
@@ -2094,6 +2096,46 @@ TestSet_style_noLeg = {
         "var": "ProjectGroup",
         "map": TestSetColors,
         "default": "lightgrey"
+    },
+    "legend_fn":None
+}
+
+# %% [markdown]
+# ## Cultivar style
+
+# %%
+cult_colour_map, cult_marker_map = (
+    build_style_maps(
+        data.obs,
+        data.pred,
+        Colors,
+        Markers, 
+        'Wheat.SowingData.Cultivar'))
+
+cultivar_style = {
+    "colour": {
+        "var": "Wheat.SowingData.Cultivar",
+        "map": cult_colour_map,
+        "default": "lightgrey"
+    },
+    "marker": {
+        "var": "Wheat.SowingData.Cultivar",
+        "map": cult_marker_map,
+        "default": "o"
+    },
+    "legend_fn":basic_legend
+}
+
+cultivar_style_noLeg = {
+    "colour": {
+        "var": "Wheat.SowingData.Cultivar",
+        "map": cult_colour_map,
+        "default": "lightgrey"
+    },
+    "marker": {
+        "var": "Wheat.SowingData.Cultivar",
+        "map": cult_marker_map,
+        "default": "o"
     },
     "legend_fn":None
 }
@@ -2545,7 +2587,7 @@ data.derive('Wheat.RueActPerTt',
 # ## Spike/Stem
 
 # %%
-xyPlot("Wheat.Spike.Wt/Stem.Wt")
+xyPlot("Wheat.Spike.Wt/Stem.Wt",style=devType_style)
 plt.plot([5.8,6.0,7.0,8.0,11.0],
          [0.0,.02,.35,.45,.45],'-')
 
@@ -2560,7 +2602,7 @@ plt.plot([5.8,6.0,7.0,8.0,11.0],
 # ## Spike/totalDM
 
 # %%
-xyPlot('Wheat.Spike.WtProportion')
+xyPlot('Wheat.Spike.WtProportion',style=devType_style)
 plt.plot([3.0,5.5, 6,7.0,8.0],
          [0,0,0.04,.22,.22],'-')
 plt.plot([3.0,5.5, 6,7.0,8.0],
@@ -2582,7 +2624,7 @@ plt.plot([3.0,5.5, 6,7.0,8.0],
 # ## proportion
 
 # %%
-xyPlot('Wheat.Stem.WtProportion',ylim=(0,0.9))
+xyPlot('Wheat.Stem.WtProportion',ylim=(0,0.9),style=devType_style)
 plt.plot([3.0,5.0, 6.0,8.0],
          [0.0,0.36,.65,.65],'-')
 plt.plot([3.0,5.0, 6.0,8.0],
@@ -2595,7 +2637,8 @@ plt.plot([3.0,5.0, 6.0,8.0],
 xyPlot('Wheat.Stem.Wt',
        xvar='Wheat.AboveGround.Wt',
        filter_fn=lambda df: df["Wheat.Phenology.Stage"] < 8.5,
-       xlim = (0,3100))
+       xlim = (0,3100),
+      style=devType_style)
 xs = range(0,2800,10)
 const = .135
 power = 1.2
@@ -2608,7 +2651,7 @@ xyPlot('Wheat.Stem.Wt',
        xvar='Wheat.AboveGround.Wt',
        filter_fn=lambda df: df["Wheat.Phenology.Stage"] < 8.5,
        xlim = (0,1000),
-      ylim = (0,800))
+      ylim = (0,800),style=devType_style)
 xs = range(0,2800,10)
 const = .135
 power = 1.2
@@ -2636,14 +2679,15 @@ plt.plot(xs,ys,'-')
 # ## Total
 
 # %%
-xyPlot('Wheat.Leaf.WtProportion')
+xyPlot('Wheat.Leaf.WtProportion',style=devType_style)
 plt.plot([3.0,4.0,5.0,6.0,8.0],
          [1,.9,.7,.3,.15],'-')
 
 # %%
 xyPlot('Wheat.Leaf.Wt',
               xvar = 'Wheat.Phenology.AccumulatedTT',
-              xlim = (0,4000))
+              xlim = (0,4000),
+       style=devType_style)
 
 # %%
 TTs = ['Wheat.Phenology.AccumulatedTT','TT00','TT01','TT02','TT03','TT04','TT05','TT06']
@@ -2658,43 +2702,43 @@ fig = panel_xyPlot(
     style = cultivar_style_noLeg)
 
 # %%
-xyPlot(xvar='Wheat.Phenology.AccumulatedTT',yvar='Wheat.Phenology.Stage',xlim=None)
+xyPlot(xvar='Wheat.Phenology.AccumulatedTT',yvar='Wheat.Phenology.Stage',xlim=None,style=devType_style)
 
 # %%
-xyPlot('Wheat.Leaf.Wt')
+xyPlot('Wheat.Leaf.Wt',style=devType_style)
 
 # %% [markdown]
 # ## Live
 
 # %%
-xyPlot('Wheat.Leaf.LiveWtProportion')
+xyPlot('Wheat.Leaf.LiveWtProportion',style=devType_style)
 plt.plot([3.0,4.0,5.0,6.0,8.0],
          [1,.9,.7,.3,.15],'-')
 
 # %%
 xyPlot('Wheat.Leaf.Live.Wt',
               xvar = 'Wheat.Phenology.AccumulatedTT',
-              xlim = (0,3100))
+              xlim = (0,3100),style=devType_style)
 
 # %%
-xyPlot('Wheat.Leaf.Live.Wt')
+xyPlot('Wheat.Leaf.Live.Wt',style=devType_style)
 
 # %% [markdown]
 # ## Dead Leaf
 
 # %%
-xyPlot('Wheat.Leaf.DeadWtProportion',ylim=(0,0.3))
+xyPlot('Wheat.Leaf.DeadWtProportion',ylim=(0,0.3),style=devType_style)
 
 # %%
 xyPlot('Wheat.Leaf.Dead.Wt',
        xvar = 'Wheat.Phenology.AccumulatedTT',
-       xlim = (0,4000))
+       xlim = (0,4000),style=devType_style)
 
 # %%
-xyPlot('Wheat.Leaf.Dead.Wt')
+xyPlot('Wheat.Leaf.Dead.Wt',style=devType_style)
 
 # %%
-xyPlot('Wheat.Leaf.Dead.Wt')
+xyPlot('Wheat.Leaf.Dead.Wt',style=devType_style)
 
 # %% [markdown]
 # ## Leaf Reallocation
@@ -2712,7 +2756,7 @@ add_linear([0,1000],0.25,0)
 # # Ear Wt
 
 # %%
-xyPlot('Wheat.Ear.WtProportion')
+xyPlot('Wheat.Ear.WtProportion',style=devType_style)
 plt.plot([3.0,5.8,7.0,8.0,9.0,10,11],
          [0,0,.15,.2,.25,0.6,0.6],'-')
 
@@ -2722,7 +2766,7 @@ plt.plot([3.0,5.8,7.0,8.0,9.0,10,11],
 # %%
 xyPlot('Wheat.Leaf.LAI',
       xvar = 'Wheat.Phenology.AccumulatedTT',
-      xlim = (0,3100))
+      xlim = (0,3100),style=devType_style)
 
 # %%
 TTs = ['TT00','TT01','TT02','TT03','TT04','TT05','TT06','TT07']
@@ -2737,7 +2781,7 @@ fig = panel_xyPlot(
     style = cultivar_style_noLeg)
 
 # %%
-xyPlot('Wheat.Leaf.LAI')
+xyPlot('Wheat.Leaf.LAI',style=devType_style)
 
 # %% [markdown]
 # # Specific Leaf Area
@@ -2747,11 +2791,11 @@ xyPlot('Wheat.Leaf.LAI')
 
 # %%
 xyPlot('Wheat.Leaf.SpecificAreaCanopy',
-      ylim = (0,0.04))
+      ylim = (0,0.04),style=devType_style)
 
 # %%
 xyPlot('Wheat.Leaf.SpecificAreaCanopy',xvar="Clock.Today.DayOfYear",
-      ylim = (0,0.04), xlim=(0,365))
+      ylim = (0,0.04), xlim=(0,365),style=devType_style)
 
 # %%
 xyPlot('Wheat.Leaf.SpecificAreaCanopy', 
@@ -2822,7 +2866,7 @@ fig = panel_xyPlot(yvar = 'Wheat.SLA.diff',
 xyPlot('Wheat.Leaf.SpecificAreaCanopy',
       xvar= 'Wheat.Phenology.AccumulatedTT', 
       xlim = (0,3100),
-      ylim = (0,0.04),
+      ylim = (0,0.04),style=devType_style,
       filter_fn = lambda df: df['Wheat.Phenology.Stage'] <8)
 slaTt = [0,3000]
 slaTtVal = [0.037,0.012]
@@ -2863,65 +2907,57 @@ fig = panel_xyPlot(yvar = 'Wheat.SLATt.diff',
 # ## Radn normed 
 
 # %%
-xyPlot('SLA * Radn')
+xyPlot('SLA * Radn',style=devType_style)
 plt.ylim(0,0.8)
 
 # %%
-xyPlot('SLA / Radn')
+xyPlot('SLA / Radn',style=devType_style)
 plt.ylim(0,0.008)
 
 # %%
 xyPlot('SLA * Radn',
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
-              ylim=(0,0.8))
+              ylim=(0,0.8),style=devType_style)
 
 # %%
 xyPlot('SLA / Radn',
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
-              ylim=(0,0.008))
+              ylim=(0,0.008),style=devType_style)
 
 # %%
-
-xyPlot('Wheat.Leaf.SpecificAreaCanopy',
-              xvar='Wheat.Phenology.Stage',
-              #xlim=(0,3100),
-              #ylim=(0,0.8),
-      filter_fn = lambda df: df['Experiment']=='Lincoln2021' )
-
-# %%
-xyPlot('SLA * Radn',
+xyPlot('SLA * Radn',style=devType_style,
               xvar='Clock.Today.DayOfYear',
               xlim=(0,370),
               ylim=(0,0.8))
 
 # %%
-xyPlot('SLA / Radn',
+xyPlot('SLA / Radn',style=devType_style,
               xvar='Clock.Today.DayOfYear',
               xlim=(0,370),
               ylim=(0,0.008))
 
 # %%
-xyPlot('SLA * Radn',
+xyPlot('SLA * Radn',style=devType_style,
               xvar='Wheat.DaysAfterSowing',
               xlim=(0,370),
               ylim=(0,0.8))
 
 # %%
-xyPlot('SLA / Radn',
+xyPlot('SLA / Radn',style=devType_style,
               xvar='Wheat.DaysAfterSowing',
               xlim=(0,370),
               ylim=(0,0.008))
 
 # %%
-xyPlot('SLA * Radn',
+xyPlot('SLA * Radn',style=devType_style,
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
               ylim=(0,0.8))
 
 # %%
-xyPlot('SLA / Radn',
+xyPlot('SLA / Radn',style=devType_style,
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
               ylim=(0,0.008))
@@ -2938,7 +2974,7 @@ xyPlot('SLA * Radn',
 # ## MinT normed 
 
 # %%
-xyPlot('SLA * MinT',
+xyPlot('SLA * MinT',style=devType_style,
        ylim=(0,0.6))
 
 # %%
@@ -2953,34 +2989,34 @@ xyPlot('SLA * MinT',
 # ## MaxT normed 
 
 # %%
-xyPlot('SLA * MaxT', ylim=(0,0.8))
+xyPlot('SLA * MaxT', ylim=(0,0.8),style=devType_style)
 
 # %%
-xyPlot('SLA / MaxT', ylim=(0,0.008))
+xyPlot('SLA / MaxT', ylim=(0,0.008),style=devType_style)
 
 # %%
 xyPlot('SLA * MaxT',
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
-              ylim=(0,0.8))
+              ylim=(0,0.8),style=devType_style)
 
 # %% [markdown]
 # ## MeanT normed
 
 # %%
-xyPlot('SLA * MeanT', ylim=(0,0.5))
+xyPlot('SLA * MeanT', ylim=(0,0.5),style=devType_style)
 
 # %% [markdown]
 # ## PTQ normed 
 
 # %%
-xyPlot('SLA * PTQ', ylim = (0,0.2))
+xyPlot('SLA * PTQ', ylim = (0,0.2),style=devType_style)
 
 # %%
 xyPlot('SLA * PTQ',
               xvar='Wheat.Phenology.AccumulatedTT',
               xlim=(0,3100),
-              ylim=(0,0.1))
+              ylim=(0,0.1),style=devType_style)
 
 # %%
 xyPlot('SLA * PTQ',
@@ -3005,13 +3041,13 @@ pannel_per_experment('Wheat.Leaf.SpecificAreaCanopy')
 # %%
 exclude=["Turretfield2024","Fords2025"]
 saSpring = lambda df: ~df["Experiment"].isin(exclude)
-xyPlot('Wheat.Phenology.HaunStage',xvar='Wheat.Phenology.AccumulatedTT',xlim=None,filter_fn=saSpring)
+xyPlot('Wheat.Phenology.HaunStage',xvar='Wheat.Phenology.AccumulatedTT',xlim=None,filter_fn=saSpring,style=devType_style)
 
 # %% [markdown]
 # ## WWHI
 
 # %%
-xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,
+xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,style=devType_style,
        filter_fn=lambda df: (~df["Experiment"].isin(["Fords2025","Turretfield2024"])) & (df['ProjectGroup']=='WWHI'))
 plt.plot([100,1500],[0,14],color='orange')
 
@@ -3031,7 +3067,7 @@ for h in HSs[:-1]:
     tt.append(tt[p]+dtt)
     p+=1
 saSpring = lambda df: (df['DevelopmentType']=='Spring')&(~df["Experiment"].isin(exclude))
-xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,
+xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,style=devType_style,
        filter_fn= saSpring)
 plt.plot(tt,HSs,color='blue')
 
@@ -3055,7 +3091,7 @@ fig = panel_xyPlot(
 
 # %%
 saWinter = lambda df: (df['DevelopmentType']!='Spring')&(~df["Experiment"].isin(exclude))
-xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,
+xyPlot('Wheat.Phenology.HaunStage',xvar="Wheat.Phenology.AccumulatedTT",xlim=None,style=devType_style,
         filter_fn= saWinter)
 plt.plot(tt,HSs,color='orange')
 
@@ -3100,8 +3136,6 @@ xyPlot(
     leg_ncols = 3
 )
 
-# %%
-
 # %% [markdown]
 # # Stem Number
 
@@ -3109,7 +3143,7 @@ xyPlot(
 # ## Stem Number per plant
 
 # %%
-xyPlot('Wheat.Leaf.StemNumberPerPlant')
+xyPlot('Wheat.Leaf.StemNumberPerPlant',style=devType_style)
 
 # %%
 xyPlot('Wheat.Leaf.StemNumberPerPlant',
@@ -3137,7 +3171,7 @@ pannel_per_experment('Wheat.Leaf.StemNumberPerPlant')
 # ## Stem Population
 
 # %%
-xyPlot('Wheat.Leaf.StemPopulation')
+xyPlot('Wheat.Leaf.StemPopulation',style=devType_style)
 
 # %%
 xyPlot('Wheat.Leaf.StemPopulation',
@@ -3185,8 +3219,6 @@ ys = [600,600]
 plt.plot(xs,ys,'-',color='k',label='y=x')
 
 # %%
-
-# %%
 #  Stem + Spike N is closely correlated to Stem N so we can estimate from this relationship where we have stem wt recorded but no spike wt
 data.derive('Wheat.AboveGround.Wt.PerPlant.Anthesis',
             lambda df: df['Wheat.AboveGround.Wt.Anthesis']/df['Wheat.Population'] )
@@ -3231,7 +3263,7 @@ plt.plot(xs,ys,'-',color='k',label='y=x')
 # %%
 xyPlot(
 xvar = 'Wheat.Stem.Wt.Anthesis',
-yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',
+yvar = 'Wheat.Leaf.StemNumberPerPlant.Final',style=devType_style,
 xlim=None,
     aggregate=True
 )
@@ -3243,12 +3275,12 @@ xlim=None,
 # ## Leaf
 
 # %%
-xyPlot('Wheat.Leaf.Live.NConc')
+xyPlot('Wheat.Leaf.Live.NConc',style=devType_style)
 plt.plot([3.0,5.0,5.5,9.5,11.0],
          [0.055,.055,.045,.035,.005],'-',color='k')
 
 # %%
-xyPlot('Wheat.Leaf.Dead.NConc')
+xyPlot('Wheat.Leaf.Dead.NConc',style=devType_style)
 plt.plot([3.0,5.0,5.5,9.5,11.0],
          [0.055,.055,.045,.035,.005],'-',color='k')
 
@@ -3256,7 +3288,7 @@ plt.plot([3.0,5.0,5.5,9.5,11.0],
 # ## Stem
 
 # %%
-xyPlot('Wheat.Stem.NConc')
+xyPlot('Wheat.Stem.NConc',style=devType_style)
 plt.plot([3.0,4.5,6.0,9.5,11.0],
          [0.055,.055,.02,.012,.005],'-',color='k')
 
@@ -3308,7 +3340,7 @@ ys = [funct(0.35,1.55,-0.00738,x)/100 for x in xs]
 plt.plot(xs,ys,'--',color='k')
 
 # %%
-xyPlot('Wheat.AboveGround.NConc',xvar='Wheat.AboveGround.Wt',xlim=(0,3100))
+xyPlot('Wheat.AboveGround.NConc',xvar='Wheat.AboveGround.Wt',xlim=(0,3100),style=devType_style)
 def funct(b1,b2,b3,x):
     return b1 + np.exp(b2+(b3*x))
 xs = range(0,3000,10)
@@ -3321,13 +3353,13 @@ plt.plot(xs,ys,'--',color='k')
 # ## Grain
 
 # %%
-xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Size',xlim=None)
+xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Size',xlim=None,style=devType_style)
 
 # %%
-xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Wt',xlim=None)
+xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Wt',xlim=None,style=devType_style)
 
 # %%
-xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Number',xlim=None)
+xyPlot('Wheat.Grain.NConc',xvar='Wheat.Grain.Number',xlim=None,style=devType_style)
 
 # %% [markdown]
 # # Grain Number
@@ -3340,7 +3372,7 @@ xyPlot(
 xvar = 'Wheat.StemPlusSpikeWt.Anthesis',
 yvar = 'Wheat.Grain.Number',
 aggregate=True,
-xlim=None)
+xlim=None,style=devType_style)
 add_linear([0,1600],23,0)
 add_linear([0,1600],30,0)
 plt.ylim(0,40000)
@@ -3358,7 +3390,7 @@ plt.ylim(0,40000)
 
 # %%
 xyPlot(xvar = 'Wheat.StemPlusSpike.N.Anthesis',yvar = 'Wheat.Grain.Number',
-xlim=None,aggregate=True)
+xlim=None,aggregate=True,style=devType_style)
 add_linear([0,30],1700)
 plt.ylim(0,40000)
 
@@ -3374,7 +3406,7 @@ plt.ylim(0,40000)
 
 # %%
 xyPlot(xvar = 'Wheat.Leaf.Live.Wt.Anthesis',yvar = 'Wheat.Grain.Number',
-    xlim=None, aggregate=True)
+    xlim=None, aggregate=True,style=devType_style)
 xs=[0,600]
 slope = 85
 add_linear(xs,slope)
@@ -3382,7 +3414,7 @@ plt.ylim(0,40000)
 
 # %%
 xyPlot(xvar = 'Wheat.AboveGround.N.Anthesis',yvar = 'Wheat.Grain.Number',
-    xlim=None, aggregate=True)
+    xlim=None, aggregate=True,style=devType_style)
 xs=[0,30]
 slope = 1000
 add_linear(xs,slope)
@@ -3390,7 +3422,7 @@ plt.ylim(0,40000)
 
 # %%
 xyPlot(xvar = 'Wheat.Leaf.Live.Wt.Anthesis',yvar = 'Wheat.Grain.Number',
-        #style=experiment_style, leg_ncols=2,
+        style=devType_style,#style=experiment_style, leg_ncols=2,
        xlim=None, aggregate=True)
 xs=[0,600]
 slope = 90
@@ -3401,7 +3433,7 @@ plt.ylim(0,40000)
 # ## per total biomass
 
 # %%
-xyPlot(xvar = 'Wheat.AboveGround.Wt.Anthesis',yvar = 'Wheat.Grain.Number',
+xyPlot(xvar = 'Wheat.AboveGround.Wt.Anthesis',yvar = 'Wheat.Grain.Number',style=devType_style,
         xlim=None, aggregate=True)
 xs=[0,2500]
 slope = 15
@@ -3510,7 +3542,7 @@ fig = panel_xyPlot(
 
 # %%
 xyPlot(xvar = 'IWeather.MeanT.Critical',yvar = 'Wheat.GrainNoPerGofStem',
-    style=experiment_style, leg_ncols=2,
+    style=cultivar_style, leg_ncols=2,
        xlim=None, aggregate=True)
 plt.ylim(0,50)
 xs = [11,19]
@@ -3524,7 +3556,7 @@ plt.plot(xs,ys,'-')
 
 # %%
 xyPlot(xvar = 'Wheat.AboveGround.NConc.Anthesis',yvar = 'Wheat.GrainNoPerGofStem',
-    style=experiment_style, leg_ncols=2,
+    style=cultivar_style, leg_ncols=2,
        xlim=None, aggregate=True)
 plt.ylim(0,50)
 xs = [0.005,0.04]
@@ -3560,9 +3592,9 @@ plt.ylim(0,50)
 
 # %%
 xyPlot(xvar = 'Wheat.Phenology.PTQ.Critical',yvar = 'Wheat.GrainNoPerGofStem',
-    style=experiment_style, leg_ncols=2,
-       size_spec={"var": "Wheat.Leaf.Live.NConc.Anthesis","map": None,
-        "default": 0, "max":100, "min":1},
+    style=cultivar_style, leg_ncols=2,
+       #size_spec={"var": "Wheat.Leaf.Live.NConc.Anthesis","map": None,
+        #"default": 0, "max":100, "min":1},
        xlim=None, aggregate=True)
 plt.plot([2, 6],[30, 15],'-')
 plt.ylim(0,50)
@@ -3608,7 +3640,7 @@ fig = panel_xyPlot(
     panel_ncols=2,
     xlim=None,
     aggregate=True,
-    style=experiment_style_noLeg)
+    style=cultivar_style_noLeg)
 
 # %% [markdown]
 # ## Anthesis plant status
@@ -3630,34 +3662,36 @@ fig = panel_xyPlot(
     panel_ncols=2,
     xlim=None,
     aggregate=True,
-    style=experiment_style_noLeg)
+    style=cultivar_style_noLeg)
 
 # %%
 xyPlot(yvar = 'Wheat.Grain.Size', xvar = 'Wheat.AboveGround.Wt.Anthesis',
-        style=experiment_style, leg_ncols=3,
+        style=cultivar_style, leg_ncols=3,
         size_spec={"var": "Wheat.Grain.Wt","map": None,
         "default": 1000, "max":100, "min":1},
         xlim=None, aggregate=True)
 
 # %%
 xyPlot(yvar = 'Wheat.Grain.Size', xvar = 'Wheat.StemPlusSpike.Wt.Anthesis',
-        style=experiment_style, leg_ncols=3,
+        style=cultivar_style, leg_ncols=3,
         size_spec={"var": "Wheat.Grain.Wt","map": None,
         "default": 1000, "max":100, "min":1},
         xlim=None, aggregate=True)
+
+plt.plot([250,2200],[0.018, 0.04])
 
 # %% [markdown]
 # # Yield components
 
 # %%
-xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.Grain.Size',
+xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.Grain.Size',style=devType_style,
         #style=experiment_style, leg_ncols=3,
         size_spec={"var": "Wheat.Grain.Wt","map": None,
         "default": 1000, "max":100, "min":1},
         xlim=None, aggregate=True)
 
 # %%
-xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.Grain.Number',
+xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.Grain.Number',style=devType_style,
         #style=experiment_style, leg_ncols=3,
         size_spec={"var": "Wheat.Grain.Wt","map": None,
         "default": 1000, "max":100, "min":1},
@@ -3669,6 +3703,16 @@ xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.Grain.HarvestIndex',
         size_spec={"var": "Wheat.Grain.Wt","map": None,
         "default": 1000, "max":100, "min":1},
         xlim=None, aggregate=True)
+
+# %%
+xyPlot(yvar = 'Wheat.Grain.Wt', xvar = 'Wheat.AboveGround.Wt',
+        style=cultivar_style, leg_ncols=3,
+        size_spec={"var": "Wheat.Grain.Wt","map": None,
+        "default": 1000, "max":100, "min":1},
+        xlim=None, aggregate=True)
+xs=[0,3300]
+slope = 0.42
+add_linear(xs,slope)
 
 # %% [markdown]
 # # Met variables

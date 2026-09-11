@@ -1865,6 +1865,22 @@ demark_by = 'DevelopmentType'
 x_var = 'Wheat.Phenology.AccumulatedTT'
 plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
 
+# %%
+var = 'Wheat.Stem.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict)
+
+# %%
+var = 'Wheat.Stem.Wt'
+demark_by = 'Wheat.SowingData.Cultivar'
+x_var = 'Wheat.Phenology.Stage'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="WWHI", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict)
+
 # %% [markdown]
 # ## LAI
 
@@ -1889,7 +1905,7 @@ filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni",
 plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
 
 # %% [markdown]
-# ## leaf Wt
+# ## leaf live Wt
 
 # %%
 plot_obs_pred_by_branch("Wheat.Leaf.Live.Wt",demark_by='DevelopmentType',leg=True)
@@ -1902,16 +1918,60 @@ plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by)
 
 # %%
 var = 'Wheat.Leaf.Live.Wt'
-demark_by = 'Experiment'
+demark_by = 'DevelopmentType'
 x_var = 'Wheat.Phenology.AccumulatedTT'
 filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict, leg=True)
+
+# %%
+var = 'Wheat.Leaf.Live.Wt'
+demark_by = 'DevelopmentType'#'Wheat.SowingData.Cultivar'
+x_var = 'Wheat.Phenology.Stage'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="WWHI", 
                "filter_vars":  ['ProjectGroup']}
 plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
 
 # %%
 var = 'Wheat.Leaf.Live.Wt'
-demark_by = 'DevelopmentType'#'Wheat.SowingData.Cultivar'
-x_var = 'Wheat.Phenology.AccumulatedTT'
+demark_by = 'Wheat.SowingData.Cultivar'
+x_var = 'Wheat.Phenology.Stage'
 filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="WWHI", 
                "filter_vars":  ['ProjectGroup']}
-plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict )
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict , leg=True)
+
+# %% [markdown]
+# ## Leaf dead wt
+
+# %%
+plot_obs_pred_by_branch("Wheat.Leaf.Dead.Wt",demark_by='DevelopmentType',leg=True)
+
+# %%
+var = 'Wheat.Leaf.Dead.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, leg=True)
+
+# %%
+var = 'Wheat.Leaf.Dead.Wt'
+demark_by = 'ProjectGroup'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, leg=True)
+
+# %%
+var = 'Wheat.Leaf.Dead.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'] =="LincolnUni", 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict, leg=True)
+
+# %%
+var = 'Wheat.Leaf.Dead.Wt'
+demark_by = 'DevelopmentType'
+x_var = 'Wheat.Phenology.AccumulatedTT'
+filter_dict = {"filter_fn": lambda df: df['ProjectGroup'].isin(["WWHI","GxExM"]), 
+               "filter_vars":  ['ProjectGroup']}
+plot_res_by_branch(var=var, x_var=x_var, demark_by=demark_by, filter_dict=filter_dict, leg=True)
+
+# %%
